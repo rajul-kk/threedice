@@ -7,7 +7,7 @@ import sys
 import pytest
 
 threedice = pytest.importorskip("threedice")
-if not os.path.isfile(os.path.join(os.path.dirname(threedice.__file__), "bin", "3D-ICE-Emulator")):
+if not os.path.isfile(os.path.join(os.path.dirname(threedice.__file__), "bin", threedice.EXE_NAME)):
     pytest.skip("no bundled binary (source checkout)", allow_module_level=True)
 
 PIN = "4953952a1ef6d38807ff307212a6f15e5b2ef935"

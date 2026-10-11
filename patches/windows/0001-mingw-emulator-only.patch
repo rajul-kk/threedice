@@ -1,0 +1,43 @@
+diff --git a/bin/3D-ICE-Emulator.c b/bin/3D-ICE-Emulator.c
+index 5309f40..8cbc6da 100644
+--- a/bin/3D-ICE-Emulator.c
++++ b/bin/3D-ICE-Emulator.c
+@@ -45,8 +45,10 @@
+ #include "output.h"
+ #include "analysis.h"
+ 
++#ifndef _WIN32
+ #include <sys/resource.h>
+ #include <sys/time.h>
++#endif
+ 
+ int main(int argc, char** argv)
+ {
+@@ -220,6 +222,7 @@ int main(int argc, char** argv)
+     fprintf (stdout, "\nEmulation took %.3f sec\n",
+         (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9 ) ;
+ 
++#ifndef _WIN32   /* no getrusage() on Windows */
+     // Output the maximum memory usage
+     struct rusage usage;
+     if (getrusage(RUSAGE_SELF, &usage) == 0) {
+@@ -235,6 +238,7 @@ int main(int argc, char** argv)
+     } else {
+         perror("getrusage failed");
+     }
++#endif
+     // free all data
+     ////////////////////////////////////////////////////////////////////////////
+ 
+diff --git a/makefile.def b/makefile.def
+index c22df86..53ec4f7 100644
+--- a/makefile.def
++++ b/makefile.def
+@@ -93,7 +93,6 @@
+                   $(3DICE_SOURCES)/material_element.c         \
+                   $(3DICE_SOURCES)/material_element_list.c    \
+                   $(3DICE_SOURCES)/network_message.c          \
+-                  $(3DICE_SOURCES)/network_socket.c           \
+                   $(3DICE_SOURCES)/output.c                   \
+                   $(3DICE_SOURCES)/power_grid.c               \
+                   $(3DICE_SOURCES)/powers_queue.c             \

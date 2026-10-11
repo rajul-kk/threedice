@@ -19,11 +19,16 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 PINS = json.loads((HERE / "upstream.json").read_text())
 PATCH_DIRS = {"3d-ice": HERE / "patches", "superlu_mt": HERE / "patches" / "superlu_mt"}
+# Windows (EXPERIMENTAL, MSYS2/MinGW-w64): Python is the native Windows one, make/gcc/bison/flex come from MSYS2.
+MINGW = os.name == "nt" and os.environ.get("THREEDICE_MINGW") == "1"
+EXE = "3D-ICE-Emulator.exe" if MINGW else "3D-ICE-Emulator"
+WINDOWS_PATCH_DIR = HERE / "patches" / "windows"        # emulator-only changes: no getrusage, no network_socket.c
 
 
 def _run(cmd, cwd=None, capture=False, **kw):
     print("+", " ".join(shlex.quote(str(c)) for c in cmd), flush=True)
-    return subprocess.run([str(c) for c in cmd], cwd=cwd, check=True, text=True,
+    cmd = [c.as_posix() if (MINGW and isinstance(c, Path)) else str(c) for c in cmd]   # MSYS make/sh want C:/x/y
+    return subprocess.run(cmd, cwd=cwd, check=True, text=True,
                           stdout=subprocess.PIPE if capture else None, **kw)
 
 
@@ -108,10 +113,29 @@ def toolchain():
     return t
 
 
+def _bundle_mingw_dlls(exe):
+    """Copy the MinGW-w64 DLLs the emulator needs (libgomp, openblas, libgfortran, ...) next to it. Windows searches
+    the executable's own directory first, so this is the Windows counterpart of auditwheel/delocate. Uses MSYS2 ldd."""
+    out = subprocess.run(["ldd", exe.as_posix()], capture_output=True, text=True, check=True).stdout
+    copied = []
+    for line in out.splitlines():
+        if "=>" not in line:
+            continue
+        path = line.split("=>", 1)[1].split("(")[0].strip()
+        if path.startswith("/mingw64/") or "/mingw64/" in path:
+            win = subprocess.run(["cygpath", "-w", path], capture_output=True, text=True, check=True).stdout.strip()
+            shutil.copy2(win, exe.parent / Path(win).name)
+            copied.append(Path(win).name)
+    if not copied:
+        raise RuntimeError(f"no MinGW DLLs found in ldd output: {out!r}")
+    print("bundled DLLs:", ", ".join(sorted(copied)), flush=True)
+
+
 def build_native(build_lib):
     """Compile 3D-ICE-Emulator and put it, with licences and _build_info.json, into <build_lib>/threedice/."""
-    if os.name != "posix":
-        raise RuntimeError("threedice has no native Windows build. Install it inside WSL (see README.md); "
+    if os.name != "posix" and not MINGW:
+        raise RuntimeError("threedice has no native Windows build outside the experimental MSYS2/MinGW-w64 route "
+                           "(THREEDICE_MINGW=1, see .github/workflows/build.yml). Install it inside WSL (see README.md); "
                            "iceforge's WSL backend then calls it.")
     root = HERE / "build" / "native"
     ice, slu = root / "3d-ice", root / "superlu_mt"
@@ -120,8 +144,14 @@ def build_native(build_lib):
     _extract(source_tarball("superlu_mt"), slu)
     patches += _apply_patches("3d-ice", ice)
     patches += _apply_patches("superlu_mt", slu)
+    if MINGW:
+        for p in sorted(WINDOWS_PATCH_DIR.glob("*.patch")):
+            _run(["patch", "-p1", "--forward", "--batch", "-i", p], cwd=ice)
+            patches.append({"name": f"3d-ice/windows/{p.name}", "sha256": hashlib.sha256(p.read_bytes()).hexdigest()})
     extra = shlex.split(os.environ.get("THREEDICE_MAKE_ARGS", ""))      # e.g. CC=gcc-14 on macOS
     jobs = [f"-j{os.cpu_count() or 2}"]
+    if MINGW:                                                    # SuperLU_MT's make.inc hard-codes /usr/bin/ar and ranlib
+        extra += ["ARCH=ar", "RANLIB=ranlib"]
     (slu / "lib").mkdir()
     _run(["make", "-C", slu / "SRC", *extra])                    # libsuperlu_mt_OPENMP.a (static); serial: its ar rules race under -j
     lib_a = slu / "lib" / "libsuperlu_mt_OPENMP.a"
@@ -134,14 +164,16 @@ def build_native(build_lib):
     _run(["make", *jobs, "-C", ice / "sources", *mk])
     _run(["make", "-C", ice / "lib", *mk])
     _run(["make", "-C", ice / "bin", "3D-ICE-Emulator", *mk])
-    exe = ice / "bin" / "3D-ICE-Emulator"
+    exe = ice / "bin" / EXE
     if not exe.exists():
-        raise RuntimeError("3D-ICE-Emulator was not built")
+        raise RuntimeError(f"{EXE} was not built")
     pkg = Path(build_lib) / "threedice"
     (pkg / "bin").mkdir(parents=True, exist_ok=True)
-    shutil.copy2(exe, pkg / "bin" / "3D-ICE-Emulator")
+    shutil.copy2(exe, pkg / "bin" / EXE)
     if shutil.which("strip"):
-        subprocess.run(["strip", str(pkg / "bin" / "3D-ICE-Emulator")], check=False)
+        subprocess.run(["strip", str(pkg / "bin" / EXE)], check=False)
+    if MINGW:
+        _bundle_mingw_dlls(pkg / "bin" / EXE)
     (pkg / "licenses").mkdir(exist_ok=True)
     shutil.copy2(HERE / "COPYING", pkg / "licenses" / "COPYING")
     shutil.copy2(HERE / "NOTICE", pkg / "licenses" / "NOTICE")
@@ -157,8 +189,8 @@ def build_native(build_lib):
             "superlu_mt_commit": PINS["superlu_mt"]["commit"], "superlu_mt_repo": PINS["superlu_mt"]["url"],
             "build_date_utc": when.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "toolchain": toolchain(), "patches": patches,
-            "built_targets": ["3D-ICE-Emulator"],
+            "built_targets": [EXE],
             "skipped": ["SystemC wrapper", "3D-ICE-Server", "3D-ICE-Client", "heatsink plugin"],
             "make_args": extra, "blas_libs": blas}
     (pkg / "_build_info.json").write_text(json.dumps(info, indent=2) + "\n")
-    print("built", pkg / "bin" / "3D-ICE-Emulator", flush=True)
+    print("built", pkg / "bin" / EXE, flush=True)

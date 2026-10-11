@@ -5,7 +5,7 @@ import stat
 import sys
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
-EXE_NAME = "3D-ICE-Emulator"
+EXE_NAME = "3D-ICE-Emulator.exe" if os.name == "nt" else "3D-ICE-Emulator"
 
 try:
     from importlib.metadata import version as _version
