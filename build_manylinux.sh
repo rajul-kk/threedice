@@ -1,7 +1,7 @@
 #!/bin/bash
 # Build the sdist and the manylinux_2_28 x86_64 wheel inside quay.io/pypa/manylinux_2_28_x86_64.
 # Usage (PowerShell on Windows, or any Docker host):
-#   docker run --rm -v <path to tools/threedice>:/src:ro -v <output dir>:/out quay.io/pypa/manylinux_2_28_x86_64 bash /src/build_manylinux.sh
+#   docker run --rm -v <path to this repo>:/src:ro -v <output dir>:/out quay.io/pypa/manylinux_2_28_x86_64 bash /src/build_manylinux.sh
 set -euxo pipefail
 dnf install -y epel-release || true
 dnf install -y bison flex patch git openblas-devel gcc-gfortran

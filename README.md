@@ -1,15 +1,28 @@
 # threedice
 
-The [3D-ICE](https://github.com/esl-epfl/3d-ice) 4.0 thermal simulator (`3D-ICE-Emulator`) as a pip-installable
-package. It ships one compiled binary, built from upstream commit
-`4953952a1ef6d38807ff307212a6f15e5b2ef935` (the build the Thermo benchmark is pinned to), so a pinned,
-reproducible 3D-ICE needs no compiler, no SuperLU and no `make`.
+**Unofficial redistribution of 3D-ICE; not affiliated with or endorsed by EPFL ESL.**
+3D-ICE is developed by the Embedded Systems Laboratory (ESL), EPFL: https://github.com/esl-epfl/3d-ice
+(upstream commit `4953952a1ef6d38807ff307212a6f15e5b2ef935`, the one this package is pinned to). All credit for the
+simulator belongs to its authors (listed in `NOTICE`); this package only compiles it and wraps the result as a wheel.
+Problems with the simulator itself belong upstream; problems with the packaging belong in this repository.
 
-Licence: **GPL-3.0-or-later** (3D-ICE's own licence). Please cite the four 3D-ICE papers listed in `NOTICE`.
-This is a repackaging; it is not affiliated with EPFL or the 3D-ICE authors.
+The 3D-ICE 4.0 thermal simulator (`3D-ICE-Emulator`) as a pip-installable package. It ships one compiled binary, built
+from the upstream commit above, so a pinned, reproducible 3D-ICE needs no compiler, no SuperLU and no `make`.
+
+Licence: **GPL-3.0-or-later** (3D-ICE's own licence). The complete corresponding source is in the sdist.
+
+**Please cite the 3D-ICE papers** (full references in `NOTICE`; upstream asks that publications 1 to 4 all be cited):
+
+1. K. Zhu, D. Huang, L. Costero, D. Atienza, "3D-ICE 4.0: Accurate and efficient thermal modeling for 2.5D/3D heterogeneous chiplet systems", DATE 2026.
+2. F. Terraneo, A. Leva, W. Fornaciari, M. Zapater, D. Atienza, "3D-ICE 3.0: efficient nonlinear MPSoC thermal simulation with pluggable heat sink models", IEEE TCAD 40, 2021.
+3. A. Sridhar, A. Vincenzi, D. Atienza, T. Brunschwiler, "3D-ICE: A Compact Thermal Model for Early-Stage Design of Liquid-Cooled ICs", IEEE Trans. Computers 63(10), 2014, doi:10.1109/TC.2013.127.
+4. A. Sridhar, A. Vincenzi, M. Ruggiero, T. Brunschwiler, D. Atienza, "3D-ICE: Fast compact transient thermal modeling for 3D ICs with inter-tier liquid cooling", ICCAD 2010, doi:10.1109/ICCAD.2010.5653749.
+
+Packaged by Rajul Kabeer (https://github.com/rajul-kk/threedice). Package version `4.0.0.postN` = upstream 3D-ICE 4.0 plus later
+commits up to the pinned sha, packaging revision N.
 
 ```
-pip install threedice            # Linux x86_64 (manylinux_2_28) wheel
+pip install threedice            # prebuilt wheels: see "Platforms" below
 python -c "import threedice; print(threedice.executable(), threedice.ice_commit())"
 3d-ice-emulator model.stk        # same arguments as 3D-ICE-Emulator; run it in the stk's directory
 ```
@@ -51,22 +64,24 @@ from the sdist of the same version (or from the two upstream commits plus `patch
 Linux x86_64 wheel (the official manylinux_2_28 container; Docker on Windows: use PowerShell, Git Bash mangles paths):
 
 ```
-docker run --rm -v <repo>/tools/threedice:/src:ro -v <outdir>:/out quay.io/pypa/manylinux_2_28_x86_64 bash /src/build_manylinux.sh
+docker run --rm -v <repo>:/src:ro -v <outdir>:/out quay.io/pypa/manylinux_2_28_x86_64 bash /src/build_manylinux.sh
 ```
 
 This builds the sdist, then builds the wheel *from the sdist*, then runs `auditwheel repair`. The wheel is tagged
 `py3-none-manylinux_2_28_x86_64`. Build dependencies: gcc, make, bison, flex, patch, git, OpenBLAS (with `cblas.h`).
-From a source checkout on any Linux with those: `pip install ./tools/threedice`.
+From a source checkout on any Linux with those: `pip install .`. CI builds all platforms (`.github/workflows/build.yml`); releasing is described in `RELEASING.md`.
 
 Verification record (commands, numbers, environment): `VERIFICATION.md`.
 
 ## Platforms
 
-* **Linux x86_64**: built and verified (see `VERIFICATION.md`).
-* **Linux aarch64** and **macOS** (libomp, Homebrew gcc, delocate): only described in
-  `.github-workflows-draft/build.yml` (cibuildwheel). **That workflow has never been run and macOS is untested.**
-  It is deliberately outside `.github/` so nothing triggers it.
-* **Windows**: no native build. Install it inside WSL and let iceforge's WSL backend call it:
+* **Linux x86_64**: built and verified locally (see `VERIFICATION.md`); built by CI as well.
+* **Linux aarch64**: built by CI (`ubuntu-24.04-arm`, manylinux_2_28). **Not run by us before the first CI run.**
+* **macOS arm64 and x86_64**: built by CI (Homebrew gcc + OpenBLAS, `delocate`). **Never built or run by us; untested.**
+* **Windows (experimental)**: CI tries an MSYS2/MinGW-w64 build of the emulator only (`continue-on-error`). **Untested**; the
+  patch it needs is `patches/windows/0001-mingw-emulator-only.patch` (drops `getrusage` and `network_socket.c`, which only the
+  server/client use). A wheel is published for Windows only once that job has produced one that passes its smoke test and
+  has been checked by hand. Until then, install inside WSL and let iceforge's WSL backend call it:
 
   ```
   wsl -e python3 -m venv ~/ice-venv && wsl -e ~/ice-venv/bin/pip install threedice
@@ -83,5 +98,4 @@ Verification record (commands, numbers, environment): `VERIFICATION.md`.
 `auto`) use `threedice.executable()`, and the pin check takes the commit from `threedice.ice_commit()`.
 Order of `auto`: `$ICE_EXECUTABLE`, **pip**, native `3D-ICE-Emulator` on PATH, WSL `~/3d-ice-4.0`, docker.
 
-Licence note: iceforge's own licence field is unchanged. The wheel being GPL-3.0-or-later does not affect
-iceforge, which only runs the binary as a separate process; whether to state iceforge's licence is the maintainer's call.
+Licence note: the wheel being GPL-3.0-or-later does not affect iceforge (MIT), which only runs the binary as a separate process.

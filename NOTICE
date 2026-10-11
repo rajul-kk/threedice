@@ -1,6 +1,10 @@
 threedice -- the 3D-ICE thermal simulator, packaged as a Python wheel
 ======================================================================
 
+UNOFFICIAL REDISTRIBUTION. This package is not affiliated with, endorsed by, or supported by EPFL, the Embedded Systems
+Laboratory (ESL) or the 3D-ICE authors. Upstream: https://github.com/esl-epfl/3d-ice (pinned commit
+4953952a1ef6d38807ff307212a6f15e5b2ef935). Packaged by Rajul Kabeer, https://github.com/rajul-kk/threedice .
+
 This package redistributes the 3D-ICE-Emulator program, compiled from the
 upstream source at https://github.com/esl-epfl/3d-ice (commit
 4953952a1ef6d38807ff307212a6f15e5b2ef935) with the small patches in patches/.
@@ -47,5 +51,5 @@ publications 1, 2, 3 and 4 below should be appropriately cited.
    Design (ICCAD), San Jose, CA, 2010, pp. 463-470,
    doi: 10.1109/ICCAD.2010.5653749.
 
-This package is a repackaging only. It is not affiliated with or endorsed by
-EPFL or the 3D-ICE authors.
+This package is a repackaging only. It is an unofficial redistribution; it is not
+affiliated with or endorsed by EPFL ESL or the 3D-ICE authors. Please cite the papers above.
