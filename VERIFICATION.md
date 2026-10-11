@@ -70,3 +70,11 @@ libopenblas, libgomp, libgfortran, libquadmath (`threedice.libs/`). SuperLU_MT i
 * macOS and aarch64 (only the draft workflow exists, never run); Windows has no native build.
 * Behaviour on a glibc older than 2.27 (outside manylinux_2_28 policy anyway), OpenMP thread scaling (3D-ICE used 1 thread).
 * A byte-reproducible wheel: the build embeds the build date; the binary was not compared across two builds.
+
+## Rebuild from the standalone repository (2026-10-12)
+
+After the package moved to its own repository (disclaimers, author metadata and the experimental MinGW route added),
+`build_manylinux.sh` was run once from that repository in `quay.io/pypa/manylinux_2_28_x86_64`: sdist and
+`manylinux_2_27/2_28_x86_64` wheel built, sdist contains both `upstream/*.tar.gz`, `COPYING`, `NOTICE`, `patches/` (incl. `patches/windows/`);
+the wheel installs in a fresh `python:3.11-slim` venv, `ice_commit()` is the pinned sha, `tests/` 3 passed. The wheel was not rerun
+against the stored-data comparison above (the binary build path is unchanged on Linux). aarch64, macOS and Windows: not built.
