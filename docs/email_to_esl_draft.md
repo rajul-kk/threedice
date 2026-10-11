@@ -17,8 +17,8 @@ me, and to ask whether you are happy with it.
 What it is:
 
 * `pip install threedice` installs one compiled binary, 3D-ICE-Emulator, built from esl-epfl/3d-ice at commit
-  4953952a1ef6d38807ff307212a6f15e5b2ef935 (3D-ICE 4.0 plus later commits). Two build-only patches are applied (drop -Werror;
-  `LUIndex_t` from long to int to match SuperLU_MT); neither changes the numerics. The SystemC wrapper, the server/client and the
+  4953952a1ef6d38807ff307212a6f15e5b2ef935 (3D-ICE 4.0 plus later commits). Three build-only patches are applied (drop -Werror;
+  `LUIndex_t` from long to int to match SuperLU_MT; SuperLU_MT make.inc settings that switch its threading to OpenMP and its BLAS to OpenBLAS); none is meant to change the numerics. The SystemC wrapper, the server/client and the
   heat-sink plugin are not included.
 * It is licensed GPL-3.0-or-later, like 3D-ICE. The source distribution contains the complete corresponding source: the unmodified
   3D-ICE tree at that commit, the SuperLU_MT tree, and the patches.
