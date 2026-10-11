@@ -1,0 +1,73 @@
+# Publishes the artefacts of an existing build.yml run to TestPyPI or PyPI with Trusted Publishing (OIDC, no tokens).
+#
+# Run it by hand: Actions > publish > Run workflow, choose `target` and give the id of a green build run
+# (the number in the run's URL: .../actions/runs/<run_id>).
+#
+# Trusted-publisher settings (entered once on each index; see RELEASING.md):
+#   owner rajul-kk | repository threedice | workflow filename publish.yml | environment testpypi (test.pypi.org) / pypi (pypi.org)
+# The GitHub environments `testpypi` and `pypi` must exist (Settings > Environments); add required reviewers to `pypi`.
+name: publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Index to publish to
+        type: choice
+        options: [testpypi, pypi]
+        default: testpypi
+      run_id:
+        description: "Id of the build.yml run whose artefacts to publish"
+        type: string
+        required: true
+      include_windows:
+        description: "Also publish the EXPERIMENTAL Windows wheel (only after checking it by hand)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.target }}
+    permissions:
+      id-token: write          # Trusted Publishing
+      actions: read            # download artefacts of another run
+      contents: read
+    steps:
+      - name: Download the sdist and the Linux and macOS wheels
+        uses: actions/download-artifact@v4
+        with:
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ github.token }}
+          path: dist
+          merge-multiple: true
+          pattern: "{sdist,wheels-linux-*,wheels-macos-*}"
+      - name: Download the experimental Windows wheel
+        if: inputs.include_windows
+        uses: actions/download-artifact@v4
+        with:
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ github.token }}
+          path: dist
+          merge-multiple: true
+          pattern: wheels-windows-EXPERIMENTAL
+      - name: What will be uploaded
+        run: |
+          ls -l dist
+          test -n "$(ls dist/*.tar.gz)" && test -n "$(ls dist/*.whl)"
+          sha256sum dist/*
+      - name: Publish to TestPyPI
+        if: inputs.target == 'testpypi'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          packages-dir: dist
+          skip-existing: true
+      - name: Publish to PyPI
+        if: inputs.target == 'pypi'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist

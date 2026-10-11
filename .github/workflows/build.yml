@@ -1,0 +1,149 @@
+# Builds the sdist and the wheels for threedice.
+#   sdist    ubuntu; fetches 3D-ICE and SuperLU_MT at the shas in upstream.json and bundles both (the GPL source).
+#   wheels   cibuildwheel, built FROM the sdist (offline): Linux x86_64 + aarch64 (manylinux_2_28), macOS arm64 + x86_64.
+#   windows  EXPERIMENTAL MSYS2/MinGW-w64 build of the emulator only; continue-on-error; its artefact is never published
+#            unless publish.yml is told to include it.
+# Status when this file was written: only the Linux x86_64 wheel had been built (locally, build_manylinux.sh).
+# aarch64, macOS and Windows are UNTESTED until the first run of this workflow.
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIN: 4953952a1ef6d38807ff307212a6f15e5b2ef935
+  CIBW_VERSION: 2.23.3
+
+jobs:
+  sdist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: python -m pip install build twine
+      - name: Build the sdist (clones upstream at the pinned shas, verifies them, bundles the tarballs)
+        run: python -m build --sdist
+      - name: Check the sdist carries the complete corresponding source
+        run: |
+          ls -l dist
+          tar tzf dist/threedice-*.tar.gz > sdist.txt
+          grep -E "upstream/|COPYING|NOTICE|patches/" sdist.txt
+          grep -q "upstream/3d-ice-$PIN.tar.gz" sdist.txt
+          grep -q "upstream/superlu_mt-.*\.tar\.gz" sdist.txt
+          grep -q "/COPYING$" sdist.txt
+          grep -q "/NOTICE$" sdist.txt
+      - run: python -m twine check dist/*
+      - uses: actions/upload-artifact@v4
+        with: {name: sdist, path: "dist/*.tar.gz", if-no-files-found: error}
+
+  wheels:
+    needs: sdist
+    name: wheel ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {name: linux-x86_64,  os: ubuntu-latest,    archs: x86_64, build: "cp311-manylinux*"}
+          # Native arm64 runner (free for public repos). If it is unavailable, use ubuntu-latest plus
+          # docker/setup-qemu-action (QEMU emulation works, but the SuperLU_MT + 3D-ICE build is then slow).
+          - {name: linux-aarch64, os: ubuntu-24.04-arm, archs: aarch64, build: "cp311-manylinux*"}
+          - {name: macos-arm64,   os: macos-14,         archs: arm64,  build: "cp311-macosx*", deploy: "14.0"}
+          # macos-13 (the last Intel runner image) has been retired by GitHub; macos-15-intel is its successor.
+          - {name: macos-x86_64,  os: macos-15-intel,   archs: x86_64, build: "cp311-macosx*", deploy: "15.0"}
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {name: sdist, path: sdist}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: python -m pip install cibuildwheel==${{ env.CIBW_VERSION }}
+
+      # macOS (UNTESTED): Homebrew gcc (real gcc, for -fopenmp), libomp, OpenBLAS, bison/flex newer than Apple's.
+      # delocate (cibuildwheel's default repair step) copies libgomp/libopenblas/libgfortran into the wheel.
+      # MACOSX_DEPLOYMENT_TARGET must be >= the macOS version the Homebrew bottles were built for (the runner's
+      # own version), otherwise delocate refuses to bundle them.
+      - name: Prepare the macOS toolchain
+        if: runner.os == 'macOS'
+        run: |
+          brew install gcc libomp openblas bison flex
+          GCC="$(ls "$(brew --prefix)"/bin/gcc-[0-9]* | sort -V | tail -n 1)"
+          OB="$(brew --prefix openblas)"
+          OMP="$(brew --prefix libomp)"
+          echo "CIBW_ENVIRONMENT_MACOS=PATH=\"$(brew --prefix bison)/bin:$(brew --prefix flex)/bin:\$PATH\" CPATH=\"$OB/include\" LIBRARY_PATH=\"$OB/lib:$OMP/lib\" THREEDICE_MAKE_ARGS=\"CC=$GCC\" THREEDICE_BLAS_LIBS=\"-L$OB/lib -lopenblas\" MACOSX_DEPLOYMENT_TARGET=${{ matrix.deploy }}" >> "$GITHUB_ENV"
+
+      - name: "Build the wheel from the sdist (offline, the upstream tarballs are inside it)"
+        run: python -m cibuildwheel --output-dir wheelhouse sdist/threedice-*.tar.gz
+        env:
+          CIBW_BUILD: ${{ matrix.build }}              # the wheel is py3-none: one interpreter is enough
+          CIBW_ARCHS: ${{ matrix.archs }}
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
+          CIBW_MANYLINUX_AARCH64_IMAGE: manylinux_2_28
+          # Linux: AlmaLinux 8 packages; cblas.h is in /usr/include/openblas there
+          CIBW_BEFORE_ALL_LINUX: dnf install -y epel-release || true; dnf install -y bison flex patch git openblas-devel gcc-gfortran
+          CIBW_ENVIRONMENT_LINUX: CPATH=/usr/include/openblas
+          # Smoke test of every wheel, run in a clean environment away from the source tree: import, check the
+          # pinned upstream commit, then solve a small stack with the installed binary (tests/ is inside the sdist).
+          CIBW_TEST_REQUIRES: pytest
+          CIBW_TEST_COMMAND: >
+            python -c "import threedice; c = threedice.ice_commit(); print(threedice.executable(), c); assert c == '${{ env.PIN }}'"
+            && python -m pytest {project}/tests -q
+
+      - uses: actions/upload-artifact@v4
+        with: {name: "wheels-${{ matrix.name }}", path: "wheelhouse/*.whl", if-no-files-found: error}
+
+  # EXPERIMENTAL, UNTESTED. Written from reading the 3D-ICE makefiles and from cross-compiling 37 of its sources with
+  # x86_64-w64-mingw32-gcc (the remaining ones need the MSYS2 packages dlfcn and openblas: heat_sink.c includes dlfcn.h,
+  # thermal_data.c cblas.h). Only 3D-ICE-Emulator is built. sources/network_socket.c (POSIX sockets, used only by the
+  # server/client) and getrusage() are removed by patches/windows/0001-mingw-emulator-only.patch. SuperLU_MT under MinGW
+  # has not been compiled by us at all.
+  windows:
+    needs: sdist
+    name: wheel windows-x86_64 (experimental)
+    runs-on: windows-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {name: sdist, path: sdist}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          path-type: inherit            # keeps the setup-python interpreter on PATH
+          install: >-
+            make patch git tar bison flex
+            mingw-w64-x86_64-gcc mingw-w64-x86_64-gcc-fortran mingw-w64-x86_64-openblas mingw-w64-x86_64-dlfcn
+      - name: Build the wheel (native Windows Python, MSYS2 toolchain)
+        shell: msys2 {0}
+        env:
+          THREEDICE_MINGW: "1"
+          THREEDICE_BLAS_LIBS: -lopenblas
+        run: |
+          which python gcc make bison flex
+          python -m pip install "setuptools>=77" wheel
+          mkdir -p x && tar xzf sdist/threedice-*.tar.gz -C x
+          cd x/threedice-*/
+          python -m pip wheel --no-deps --no-build-isolation -w "$GITHUB_WORKSPACE/wheelhouse" .
+      - name: Smoke test
+        shell: pwsh
+        run: |
+          python -m pip install pytest
+          python -m pip install --no-index --find-links wheelhouse threedice
+          python -c "import threedice; c = threedice.ice_commit(); print(threedice.executable(), c); assert c == '${{ env.PIN }}'"
+          tar xzf (Get-Item sdist/threedice-*.tar.gz).FullName -C $env:RUNNER_TEMP
+          python -m pytest (Get-Item $env:RUNNER_TEMP/threedice-*/tests).FullName -q
+      - uses: actions/upload-artifact@v4
+        with: {name: wheels-windows-EXPERIMENTAL, path: "wheelhouse/*.whl", if-no-files-found: error}
