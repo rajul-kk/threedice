@@ -246,8 +246,17 @@ def main():
     for name, e in results.items():
         print(f"{args.label:16s} {name:34s} bit_identical={e.get('bit_identical')} max_abs={e.get('max_abs')} "
               f"max_rel={e.get('max_rel')} {e.get('error', '')}")
-        print(f"::notice title=xplat {args.label} {name}::cpus={os.cpu_count()} bit_identical={e.get('bit_identical')} max_abs={e.get('max_abs')} "
-              f"max_rel={e.get('max_rel')} ok={e['ok']} {e.get('error', '')}")
+    # GitHub shows at most 10 notices per step, so the full table goes out as ONE notice
+    rows = []
+    for name, e in results.items():
+        row = (f"{name}: bit_identical={e.get('bit_identical')} max_abs={e.get('max_abs')} max_rel={e.get('max_rel')} "
+               f"ok={e['ok']} used_threads={e.get('used_threads')} t={e.get('seconds')}s {e.get('error', '')}")
+        for f, r in e.get("files", {}).items():
+            if not r["bit_identical"]:
+                row += f"\n    {f}: max_abs={r['max_abs']} max_rel={r['max_rel']} n={r['n_numbers']} structure_ok={r['structure_ok']}"
+        rows.append(row)
+    body = f"cpus={os.cpu_count()}\n" + "\n".join(rows)
+    print("::notice title=" + f"xplat {args.label} table" + "::" + body.replace("%", "%25").replace("\n", "%0A"))
     print(f"::notice title=xplat {args.label}::max abs diff vs Linux x86_64 reference = {summary['max_abs']} K, "
           f"max rel = {summary['max_rel']}, bit-identical on all files = {summary['all_bit_identical']}, "
           f"threads {threads_list}, cpus {os.cpu_count()}, tolerance {args.tol_abs} K, passed = {summary['passed']}")
