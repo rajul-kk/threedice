@@ -3,8 +3,10 @@
 #   wheels   cibuildwheel, built FROM the sdist (offline): Linux x86_64 + aarch64 (manylinux_2_28), macOS arm64 + x86_64.
 #   windows  EXPERIMENTAL MSYS2/MinGW-w64 build of the emulator only; continue-on-error; its artefact is never published
 #            unless publish.yml is told to include it.
-# Status when this file was written: only the Linux x86_64 wheel had been built (locally, build_manylinux.sh).
-# aarch64, macOS and Windows are UNTESTED until the first run of this workflow.
+# Status: sdist, Linux (x86_64 and aarch64, tested with cibuildwheel) and macOS pass; Windows is still EXPERIMENTAL.
+# Job logs of a public repo need a login to read, so every build/test step also writes its output to a log file and,
+# when it fails, .github/scripts/annotate_log_tail.py turns the tail of that log into ::error:: annotations
+# (readable without a login: GET /repos/rajul-kk/threedice/check-runs/<job_id>/annotations).
 name: build
 
 on:
@@ -24,28 +26,41 @@ concurrency:
 env:
   PIN: 4953952a1ef6d38807ff307212a6f15e5b2ef935
   CIBW_VERSION: 2.23.3
+  MANYLINUX_TAG: "2026.09.30-1"
 
 jobs:
   sdist:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with: {python-version: "3.11"}
       - run: python -m pip install build twine
       - name: Build the sdist (clones upstream at the pinned shas, verifies them, bundles the tarballs)
-        run: python -m build --sdist
+        shell: bash
+        run: set -o pipefail; python -m build --sdist 2>&1 | tee "$RUNNER_TEMP/sdist-build.log"
       - name: Check the sdist carries the complete corresponding source
+        shell: bash
         run: |
-          ls -l dist
-          tar tzf dist/threedice-*.tar.gz > sdist.txt
-          grep -E "upstream/|COPYING|NOTICE|patches/" sdist.txt
-          grep -q "upstream/3d-ice-$PIN.tar.gz" sdist.txt
-          grep -q "upstream/superlu_mt-.*\.tar\.gz" sdist.txt
-          grep -q "/COPYING$" sdist.txt
-          grep -q "/NOTICE$" sdist.txt
-      - run: python -m twine check dist/*
-      - uses: actions/upload-artifact@v4
+          set -o pipefail
+          {
+            set -x
+            ls -l dist
+            tar tzf dist/threedice-*.tar.gz > sdist.txt
+            grep -E "upstream/|COPYING|NOTICE|patches/" sdist.txt
+            grep -q "upstream/3d-ice-$PIN.tar.gz" sdist.txt
+            grep -q "upstream/superlu_mt-.*\.tar\.gz" sdist.txt
+            grep -q "/COPYING$" sdist.txt
+            grep -q "/NOTICE$" sdist.txt
+            python -m twine check dist/*
+          } 2>&1 | tee "$RUNNER_TEMP/sdist-check.log"
+      - name: Failure details as annotations
+        if: failure()
+        shell: bash
+        run: |
+          python .github/scripts/annotate_log_tail.py "sdist build" "$RUNNER_TEMP/sdist-build.log" 40 || true
+          python .github/scripts/annotate_log_tail.py "sdist check" "$RUNNER_TEMP/sdist-check.log" 20 || true
+      - uses: actions/upload-artifact@v6
         with: {name: sdist, path: "dist/*.tar.gz", if-no-files-found: error}
 
   wheels:
@@ -64,9 +79,10 @@ jobs:
           # macos-13 (the last Intel runner image) has been retired by GitHub; macos-15-intel is its successor.
           - {name: macos-x86_64,  os: macos-15-intel,   archs: x86_64, build: "cp311-macosx*", deploy: "15.0"}
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v5                  # only for .github/scripts/annotate_log_tail.py
+      - uses: actions/download-artifact@v7
         with: {name: sdist, path: sdist}
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with: {python-version: "3.11"}
       - run: python -m pip install cibuildwheel==${{ env.CIBW_VERSION }}
 
@@ -78,18 +94,24 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           brew install gcc libomp openblas bison flex
-          GCC="$(ls "$(brew --prefix)"/bin/gcc-[0-9]* | sort -V | tail -n 1)"
+          GCC="$(find "$(brew --prefix)/bin" -name 'gcc-[0-9]*' | sort -V | tail -n 1)"
           OB="$(brew --prefix openblas)"
           OMP="$(brew --prefix libomp)"
           echo "CIBW_ENVIRONMENT_MACOS=PATH=\"$(brew --prefix bison)/bin:$(brew --prefix flex)/bin:\$PATH\" CPATH=\"$OB/include\" LIBRARY_PATH=\"$OB/lib:$OMP/lib\" THREEDICE_MAKE_ARGS=\"CC=$GCC\" THREEDICE_BLAS_LIBS=\"-L$OB/lib -lopenblas\" MACOSX_DEPLOYMENT_TARGET=${{ matrix.deploy }}" >> "$GITHUB_ENV"
 
       - name: "Build the wheel from the sdist (offline, the upstream tarballs are inside it)"
-        run: python -m cibuildwheel --output-dir wheelhouse sdist/threedice-*.tar.gz
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m cibuildwheel --output-dir wheelhouse sdist/threedice-*.tar.gz 2>&1 | tee "$RUNNER_TEMP/cibw.log"
         env:
           CIBW_BUILD: ${{ matrix.build }}              # the wheel is py3-none: one interpreter is enough
           CIBW_ARCHS: ${{ matrix.archs }}
-          CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
-          CIBW_MANYLINUX_AARCH64_IMAGE: manylinux_2_28
+          # Pinned explicitly (not the image cibuildwheel 2.23.3 would pick, 2025.04.19-1): its patchelf 0.17.2 corrupts the
+          # non-PIE 3D-ICE-Emulator when auditwheel rewrites its RPATH (the repaired binary dies with SIGSEGV inside ld.so,
+          # before main()); patchelf 0.19.1, in this image, does not. Bump the tag deliberately and re-run the tests.
+          CIBW_MANYLINUX_X86_64_IMAGE: quay.io/pypa/manylinux_2_28_x86_64:${{ env.MANYLINUX_TAG }}
+          CIBW_MANYLINUX_AARCH64_IMAGE: quay.io/pypa/manylinux_2_28_aarch64:${{ env.MANYLINUX_TAG }}
           # Linux: AlmaLinux 8 packages; cblas.h is in /usr/include/openblas there
           CIBW_BEFORE_ALL_LINUX: dnf install -y epel-release || true; dnf install -y bison flex patch git openblas-devel gcc-gfortran
           CIBW_ENVIRONMENT_LINUX: CPATH=/usr/include/openblas
@@ -100,7 +122,12 @@ jobs:
             python -c "import threedice; c = threedice.ice_commit(); print(threedice.executable(), c); assert c == '${{ env.PIN }}'"
             && python -m pytest {project}/tests -q
 
-      - uses: actions/upload-artifact@v4
+      - name: Failure details as annotations
+        if: failure()
+        shell: bash
+        run: python .github/scripts/annotate_log_tail.py "wheel ${{ matrix.name }}" "$RUNNER_TEMP/cibw.log" 40 || true
+
+      - uses: actions/upload-artifact@v6
         with: {name: "wheels-${{ matrix.name }}", path: "wheelhouse/*.whl", if-no-files-found: error}
 
   # EXPERIMENTAL, UNTESTED. Written from reading the 3D-ICE makefiles and from cross-compiling 37 of its sources with
@@ -114,36 +141,55 @@ jobs:
     runs-on: windows-latest
     continue-on-error: true
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v5                  # only for .github/scripts/annotate_log_tail.py
+      - uses: actions/download-artifact@v7
         with: {name: sdist, path: sdist}
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with: {python-version: "3.11"}
       - uses: msys2/setup-msys2@v2
         with:
-          msystem: MINGW64
+          msystem: UCRT64                # MINGW64 is deprecated by MSYS2
           update: true
           path-type: inherit            # keeps the setup-python interpreter on PATH
           install: >-
             make patch git tar bison flex
-            mingw-w64-x86_64-gcc mingw-w64-x86_64-gcc-fortran mingw-w64-x86_64-openblas mingw-w64-x86_64-dlfcn
+            mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-gcc-fortran mingw-w64-ucrt-x86_64-openblas
+            mingw-w64-ucrt-x86_64-dlfcn
       - name: Build the wheel (native Windows Python, MSYS2 toolchain)
         shell: msys2 {0}
         env:
           THREEDICE_MINGW: "1"
           THREEDICE_BLAS_LIBS: -lopenblas
         run: |
-          which python gcc make bison flex
-          python -m pip install "setuptools>=77" wheel
-          mkdir -p x && tar xzf sdist/threedice-*.tar.gz -C x
-          cd x/threedice-*/
-          python -m pip wheel --no-deps --no-build-isolation -w "$GITHUB_WORKSPACE/wheelhouse" .
-      - name: Smoke test
+          set -o pipefail
+          W="$PWD"                       # the workspace, in MSYS form
+          {
+            set -x
+            which python gcc make bison flex
+            python -m pip install "setuptools>=77" wheel
+            mkdir -p x && tar xzf sdist/threedice-*.tar.gz -C x
+            cd x/threedice-*/
+            python -m pip wheel --no-deps --no-build-isolation -w "$(cygpath -m "$W")/wheelhouse" .
+          } 2>&1 | tee "$W/windows-build.log"
+      - name: Failure details of the build as annotations
+        if: failure()
         shell: pwsh
+        run: python .github/scripts/annotate_log_tail.py "windows build" windows-build.log 40
+      - name: Smoke test
+        shell: bash
         run: |
-          python -m pip install pytest
-          python -m pip install --no-index --find-links wheelhouse threedice
-          python -c "import threedice; c = threedice.ice_commit(); print(threedice.executable(), c); assert c == '${{ env.PIN }}'"
-          tar xzf (Get-Item sdist/threedice-*.tar.gz).FullName -C $env:RUNNER_TEMP
-          python -m pytest (Get-Item $env:RUNNER_TEMP/threedice-*/tests).FullName -q
-      - uses: actions/upload-artifact@v4
+          set -o pipefail
+          {
+            set -x
+            python -m pip install pytest
+            python -m pip install --no-index --find-links wheelhouse threedice
+            python -c "import threedice; c = threedice.ice_commit(); print(threedice.executable(), c); assert c == '${{ env.PIN }}'"
+            mkdir -p smoke && tar xzf sdist/threedice-*.tar.gz -C smoke     # relative paths: GNU tar reads "D:" as a host
+            python -m pytest smoke/threedice-*/tests -q
+          } 2>&1 | tee windows-test.log
+      - name: Failure details of the smoke test as annotations
+        if: failure()
+        shell: pwsh
+        run: python .github/scripts/annotate_log_tail.py "windows smoke test" windows-test.log 40
+      - uses: actions/upload-artifact@v6
         with: {name: wheels-windows-EXPERIMENTAL, path: "wheelhouse/*.whl", if-no-files-found: error}

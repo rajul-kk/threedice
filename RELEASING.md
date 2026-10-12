@@ -113,5 +113,5 @@ Change `version`. Change `upstream.json` only if you deliberately move the pin; 
 * `invalid-publisher` on upload: the values in step 3 do not match the workflow run exactly (workflow filename, environment,
   owner, repository).
 * The aarch64 job errors on the runner label: the arm runner is not available to the repository. Switch that matrix line to
-  `ubuntu-latest` and add a `docker/setup-qemu-action@v3` step before cibuildwheel.
+  `ubuntu-24.04` and add a `docker/setup-qemu-action@v3` step before cibuildwheel.
 * Withdrawing a release: PyPI project page > Manage > Releases > yank or delete.
