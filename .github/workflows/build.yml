@@ -163,6 +163,7 @@ jobs:
         run: |
           set -o pipefail
           W="$PWD"                       # the workspace, in MSYS form
+          export CPATH="$(cygpath -m /ucrt64/include/openblas)"    # cblas.h lives in include/openblas
           {
             set -x
             which python gcc make bison flex
@@ -176,6 +177,7 @@ jobs:
         shell: pwsh
         run: python .github/scripts/annotate_log_tail.py "windows build" windows-build.log 40
       - name: Smoke test
+        id: smoke
         shell: bash
         run: |
           set -o pipefail
@@ -188,7 +190,7 @@ jobs:
             python -m pytest smoke/threedice-*/tests -q
           } 2>&1 | tee windows-test.log
       - name: Failure details of the smoke test as annotations
-        if: failure()
+        if: failure() && steps.smoke.outcome == 'failure'
         shell: pwsh
         run: python .github/scripts/annotate_log_tail.py "windows smoke test" windows-test.log 40
       - uses: actions/upload-artifact@v6

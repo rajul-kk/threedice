@@ -158,7 +158,8 @@ def build_native(build_lib):
     if not lib_a.exists():
         raise RuntimeError(f"SuperLU_MT build did not produce {lib_a}")
     blas = os.environ.get("THREEDICE_BLAS_LIBS", "-lopenblas")
-    mk = [f"SLU_MAIN={slu}", f"SLU_LIBS=-L{slu / 'lib'} -lsuperlu_mt_OPENMP {blas}", *extra]
+    fwd = (lambda q: q.as_posix()) if MINGW else str          # make's shell would eat the backslashes of a Windows path
+    mk = [f"SLU_MAIN={fwd(slu)}", f"SLU_LIBS=-L{fwd(slu / 'lib')} -lsuperlu_mt_OPENMP {blas}", *extra]
     _run(["make", "-C", ice / "flex", *mk])
     _run(["make", "-C", ice / "bison", *mk])
     _run(["make", *jobs, "-C", ice / "sources", *mk])
