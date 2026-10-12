@@ -185,9 +185,11 @@ jobs:
             set -x
             python -m pip install pytest
             python -m pip install --no-index --find-links wheelhouse threedice
-            python -c "import threedice; c = threedice.ice_commit(); print(threedice.executable(), c); assert c == '${{ env.PIN }}'"
+            # not from the workspace root: its threedice/ source directory (no binary) would shadow the installed wheel
+            (cd "$RUNNER_TEMP" && python -c "import threedice; c = threedice.ice_commit(); print(threedice.executable(), c); assert c == '${{ env.PIN }}'")
             mkdir -p smoke && tar xzf sdist/threedice-*.tar.gz -C smoke     # relative paths: GNU tar reads "D:" as a host
-            python -m pytest smoke/threedice-*/tests -q
+            WS="$(cygpath -m "$PWD")"
+            cd "$RUNNER_TEMP" && python -m pytest "$WS"/smoke/threedice-*/tests -q -p no:cacheprovider
           } 2>&1 | tee windows-test.log
       - name: Failure details of the smoke test as annotations
         if: failure() && steps.smoke.outcome == 'failure'
