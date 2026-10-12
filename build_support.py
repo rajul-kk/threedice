@@ -19,7 +19,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 PINS = json.loads((HERE / "upstream.json").read_text())
 PATCH_DIRS = {"3d-ice": HERE / "patches", "superlu_mt": HERE / "patches" / "superlu_mt"}
-# Windows (EXPERIMENTAL, MSYS2/MinGW-w64): Python is the native Windows one, make/gcc/bison/flex come from MSYS2.
+# Windows (EXPERIMENTAL, MSYS2 UCRT64/MinGW-w64): Python is the native Windows one, make/gcc/bison/flex come from MSYS2.
 MINGW = os.name == "nt" and os.environ.get("THREEDICE_MINGW") == "1"
 EXE = "3D-ICE-Emulator.exe" if MINGW else "3D-ICE-Emulator"
 WINDOWS_PATCH_DIR = HERE / "patches" / "windows"        # emulator-only changes: no getrusage, no network_socket.c
@@ -54,11 +54,11 @@ def fetch_tarball(name, dest_dir):
     work.mkdir(parents=True)
     _run(["git", "init", "-q"], cwd=work)
     _run(["git", "fetch", "-q", "--depth", "1", pin["url"], pin["commit"]], cwd=work)
-    _run(["git", "checkout", "-q", "FETCH_HEAD"], cwd=work)
+    _run(["git", "-c", "core.autocrlf=false", "-c", "core.eol=lf", "checkout", "-q", "FETCH_HEAD"], cwd=work)
     head = _run(["git", "rev-parse", "HEAD"], cwd=work, capture=True).stdout.strip()
     if head != pin["commit"]:
         raise RuntimeError(f"{name}: fetched {head}, but upstream.json pins {pin['commit']}")
-    _run(["git", "archive", "--format=tar.gz", "-o", out, "HEAD"], cwd=work)
+    _run(["git", "-c", "core.autocrlf=false", "-c", "core.eol=lf", "archive", "--format=tar.gz", "-o", out, "HEAD"], cwd=work)
     if tarball_commit(out) != pin["commit"]:
         raise RuntimeError(f"{name}: archive does not record commit {pin['commit']}")
     shutil.rmtree(work, ignore_errors=True)
@@ -122,7 +122,7 @@ def _bundle_mingw_dlls(exe):
         if "=>" not in line:
             continue
         path = line.split("=>", 1)[1].split("(")[0].strip()
-        if path.startswith("/mingw64/") or "/mingw64/" in path:
+        if any(f"/{prefix}/" in path for prefix in ("ucrt64", "mingw64", "clang64")):   # the MSYS2 environment's prefix
             win = subprocess.run(["cygpath", "-w", path], capture_output=True, text=True, check=True).stdout.strip()
             shutil.copy2(win, exe.parent / Path(win).name)
             copied.append(Path(win).name)
