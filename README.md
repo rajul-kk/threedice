@@ -95,7 +95,7 @@ Verification record (commands, numbers, environment): `VERIFICATION.md`.
 ## Cross-platform agreement
 
 Do all wheels give the same temperatures as the Linux x86_64 wheel? `tests/xplat_check.py` (run by every wheel job of
-`build.yml` after the build, from a fresh install of the built wheel) solves five small cases and compares every output file
+`build.yml` after the build, from a fresh install of the built wheel) solves six small cases and compares every output file
 with `tests/reference/expected/`, the files written by the Linux x86_64 wheel (`tests/reference/reference.json`: wheel sha256,
 binary sha256, platform; the reference was produced locally in Docker from the cibuildwheel-built wheel, not by CI). Cases:
 3D-ICE's own `bin/example_steady.stk` (microchannels, 5 outputs), `example_steady_material.stk` (incl. a 3-D VTK map),
@@ -108,20 +108,53 @@ every file: abs diff, rel diff = abs diff / |reference|); "bit-identical" means 
 changed. A difference smaller than the printed precision would not be seen. Each job writes `xplat-<platform>.json` (artifact)
 and `::notice::` annotations.
 
-Measured in run [38267450759](https://github.com/rajul-kk/threedice/actions/runs/38267450759) (commit 5cfca52, all jobs green):
+### Threads
 
-| platform | example_steady | example_steady_material | example_transient_nonuniform | mini_steady_2die | mini_transient_2die |
-|---|---|---|---|---|---|
-| linux x86_64 (CI build) | identical, 0 / 0 | identical, 0 / 0 | identical, 0 / 0 | identical, 0 / 0 | identical, 0 / 0 |
-| linux aarch64 | identical, 0 / 0 | identical, 0 / 0 | identical, 0 / 0 | identical, 0 / 0 | identical, 0 / 0 |
-| macOS arm64 | identical, 0 / 0 | identical, 0 / 0 | identical, 0 / 0 | identical, 0 / 0 | identical, 0 / 0 |
-| macOS x86_64 | identical, 0 / 0 | identical, 0 / 0 | identical, 0 / 0 | identical, 0 / 0 | identical, 0 / 0 |
-| Windows x86_64 (experimental, MSYS2 UCRT64) | identical, 0 / 0 | identical, 0 / 0 | identical, 0 / 0 | identical, 0 / 0 | identical, 0 / 0 |
+3D-ICE reads the thread count from the stack file: `numofcores N ;` in the `solver:` section (default 1;
+`bison/stack_description_parser.y`, rule `optional_numofcores`), applied by `set_parallel_cores()` in `sources/thermal_data.c`
+(`omp_set_num_threads(N)`, refused above `omp_get_max_threads()`) and passed to SuperLU_MT as `nprocs` in
+`system_matrix_build`. No rebuild is needed. The check reruns every case with `numofcores` 1, 2 and 4 (and `OMP_NUM_THREADS=N`, so
+N is honoured on runners with fewer cores) and compares each with the **single-thread** Linux x86_64 reference. A sixth case,
+`big_steady_4die` (4 dies, 50 um cells, about 57k nodes, 2 to 15 s single-threaded), was added for the thread comparison. 3D-ICE's own
+`stack.stk` was tried for that and dropped: with this build it dies inside SuperLU_MT ("Storage for U columns exceeded", exit 255)
+at any thread count.
 
-(each cell: bit-identical on all files of the case, max abs diff in K / max rel diff.) Limits: five cases, one OpenMP thread
-(`numofcores 1` or the default), steady and single-slot transient solves; the wheels use different compilers and BLAS
-libraries (gcc 14 + OpenBLAS on Linux, Homebrew gcc + OpenBLAS on macOS, MSYS2 gcc + OpenBLAS on Windows), so agreement
-here does not prove agreement for larger systems, other thread counts or other stacks.
+Rules fixed before the run: bit-identity across thread counts was expected but is not a pass condition; a job fails only above
+1e-6 K absolute (unchanged); nothing was loosened afterwards.
+
+### Measured (runs [38267450759](https://github.com/rajul-kk/threedice/actions/runs/38267450759) single thread, commit 5cfca52;
+[38304627156](https://github.com/rajul-kk/threedice/actions/runs/38304627156) commit 1ec7844 and
+[38305276202](https://github.com/rajul-kk/threedice/actions/runs/38305276202) commit e488e90, threads 1, 2, 4)
+
+Runner cores: linux x86_64 4, linux aarch64 4, macOS x86_64 4, macOS arm64 3, Windows 4.
+
+**Single thread, platform vs the Linux x86_64 reference: bit-identical on every file of every case on every platform (max abs
+diff 0.0 K, max rel 0).**
+
+**Multi-threaded, per platform x threads x case** (bit-identical / max abs diff in K):
+
+| platform | threads | 6 cases, run 38305276202 | 6 cases, run 38304627156 |
+|---|---|---|---|
+| linux x86_64 | 1, 2, 4 | all identical, 0.0 | (log not read; the job passed) |
+| linux aarch64 | 1, 2, 4 | all identical, 0.0 | (job passed) |
+| macOS x86_64 | 1, 2, 4 | all identical, 0.0 | (job passed) |
+| macOS arm64 (3 cores) | 1, 2 | all identical, 0.0 | (job passed) |
+| macOS arm64 (3 cores) | 4 | **`mini_steady_2die`: NOT identical, max abs 3.527 K, max rel 1.1e-2** (lower_map 3.401, upper_map 3.527, lower_flp 0.834); the other 5 cases identical | identical |
+| Windows | 1, 2 | all identical, 0.0 | all identical, 0.0 |
+| Windows | 4 | all identical, 0.0 | **`example_transient_nonuniform`: NOT identical, max abs 0.023 K, max rel 7.0e-5**; the other 5 cases identical |
+
+**Finding: multi-threaded solves are not reproducible.** Twice, one (platform, case, 4 threads) result differed from the
+reference by far more than 1e-6 K (3.5 K and 0.023 K), failing the job both times, and the same cell was clean in the other run. The
+macOS arm64 and Windows wheels are not the cause by themselves: in a local Docker check on the Linux x86_64 wheel (12 cores),
+`mini_steady_2die` with `numofcores 4` differed from the single-thread result in 1 of 300 runs unrestricted and in 4 of 300 runs
+restricted to 2 CPUs; with `numofcores 2` in 1 of 300 runs (0 of 300 on 2 CPUs); pinned to a single CPU, 0 of 300. Single-thread runs have never differed.
+That points at a rare race in the threaded SuperLU_MT factorisation (not investigated further; no patch made). Practical
+consequence: for results that must be reproducible, use `numofcores 1`. The CI check keeps the 1e-6 K tolerance, so the macOS arm64 and
+Windows jobs can fail intermittently at 4 threads; Windows is `continue-on-error`.
+
+Limits: six cases; a difference below the printed precision would not be seen; the race rate was measured on one machine only.
+Different compilers and BLAS libraries are used per platform (gcc 14 + OpenBLAS on Linux, Homebrew gcc + OpenBLAS on macOS, MSYS2 gcc
++ OpenBLAS on Windows), so agreement here does not prove agreement for other stacks.
 
 ## iceforge
 
