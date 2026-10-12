@@ -1,0 +1,9 @@
+core :
+ position 1000, 1000 ;
+ dimension 1500, 1000 ;
+ power values 5.0 ;
+
+io :
+ position 100, 100 ;
+ dimension 800, 600 ;
+ power values 0.7 ;

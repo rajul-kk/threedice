@@ -1,0 +1,3 @@
+% Minimum temperatures for the floorplan of the die MEMORY_DIE
+% Time(s) 	 Background1(K) 	 Hotspot1(K) 	 Hotspot2(K) 	 Background2(K) 	 
+0.000 	 306.647 	 308.354 	 310.221 	 309.614 	 

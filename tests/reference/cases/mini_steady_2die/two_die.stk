@@ -1,0 +1,29 @@
+material SI :
+ thermal conductivity 1.30e-4 ;
+ volumetric heat capacity 1.628e-12 ;
+material BEOL :
+ thermal conductivity 2.25e-6 ;
+ volumetric heat capacity 2.175e-12 ;
+top heat sink :
+ heat transfer coefficient 5.0e-8 ;
+ temperature 300 ;
+bottom heat sink :
+ heat transfer coefficient 1.0e-9 ;
+ temperature 300 ;
+dimensions :
+ chip length 4000, width 3000 ;
+ cell length 100, width 100 ;
+die D :
+ layer 10 BEOL ;
+ source 2 SI ;
+ layer 80 SI ;
+stack :
+ die UPPER D floorplan "upper.flp" ;
+ die LOWER D floorplan "lower.flp" ;
+solver :
+ steady ;
+ initial temperature 300 ;
+output :
+ Tmap ( UPPER, "upper_map.txt", final ) ;
+ Tmap ( LOWER, "lower_map.txt", final ) ;
+ Tflp ( LOWER, "lower_flp.txt", maximum, final ) ;

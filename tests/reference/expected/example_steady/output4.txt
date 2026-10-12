@@ -1,0 +1,3 @@
+% Average temperatures for the floorplan element Core1 of the die CORE_DIE
+% Time(s) 	 CORE_DIE.Core1(K)
+0.000 	 314.801

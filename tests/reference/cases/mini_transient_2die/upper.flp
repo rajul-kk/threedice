@@ -1,0 +1,9 @@
+hot :
+ position 500, 400 ;
+ dimension 1200, 900 ;
+ power values 3.0 ;
+
+rest :
+ position 2200, 1500 ;
+ dimension 1500, 1200 ;
+ power values 1.2 ;

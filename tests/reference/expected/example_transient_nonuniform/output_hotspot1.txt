@@ -1,0 +1,7 @@
+% Average temperatures for the floorplan element Hotspot1 of the die TOP_DIE
+% Time(s) 	 TOP_DIE.Hotspot1(K)
+0.200 	 327.950
+0.400 	 324.825
+0.600 	 326.717
+0.800 	 331.806
+1.000 	 327.950

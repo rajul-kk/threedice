@@ -1,0 +1,3 @@
+MEMORY_DIE
+Cells: 400     Area: 100000000.000000     Ave_Length: 500.000000     Height: 2.000000     Conductance: 6500.000000     
+

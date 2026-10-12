@@ -1,0 +1,4 @@
+% Cell temperature for the location [MEMORY_DIE, x=5000.000,y=3000.000]
+% Nearest [column, row] indices found= [50,30] (locations [x=4950.000,y=3000.000])
+% Time(s) 	 Temperature(K)
+0.000000 	 310.662752350963

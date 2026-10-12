@@ -1,0 +1,12 @@
+(!not profiled) Layer:   CONN_TO_PCB
+
+BOTTOM_DIE
+Cells: 119     Area: 100000000.000000     Ave_Length: 916.698497     Height: 50.000000     Conductance: 260.000000     
+Cells: 119     Area: 100000000.000000     Ave_Length: 916.698497     Height: 2.000000     Conductance: 6500.000000     
+Cells: 119     Area: 100000000.000000     Ave_Length: 916.698497     Height: 10.000000     Conductance: 22.500000     
+
+TOP_DIE
+Cells: 80     Area: 100000000.000000     Ave_Length: 1118.033989     Height: 50.000000     Conductance: 260.000000     
+Cells: 80     Area: 100000000.000000     Ave_Length: 1118.033989     Height: 2.000000     Conductance: 6500.000000     
+Cells: 80     Area: 100000000.000000     Ave_Length: 1118.033989     Height: 10.000000     Conductance: 22.500000     
+

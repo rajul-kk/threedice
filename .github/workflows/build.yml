@@ -130,6 +130,27 @@ jobs:
       - uses: actions/upload-artifact@v6
         with: {name: "wheels-${{ matrix.name }}", path: "wheelhouse/*.whl", if-no-files-found: error}
 
+      # Cross-platform numerical agreement with the Linux x86_64 reference (tests/reference/, see README "Cross-platform
+      # agreement"). Installs the built wheel in a fresh venv OUTSIDE the workspace and runs tests/xplat_check.py.
+      # Pass/fail tolerance, fixed in advance: 1e-6 K absolute on every parsed number of every output file.
+      - name: Cross-platform numerical agreement
+        shell: bash
+        env: {XPLAT_LABEL: "${{ matrix.name }}"}
+        run: |
+          set -o pipefail
+          WS="$PWD"
+          python -m venv "$RUNNER_TEMP/xv"
+          PY="$RUNNER_TEMP/xv/bin/python"
+          "$PY" -m pip install --no-index --find-links "$WS/wheelhouse" threedice 2>&1 | tail -n 2
+          cd "$RUNNER_TEMP" && "$PY" "$WS/tests/xplat_check.py" --check --tol-abs 1e-6 --summary "$WS/xplat-${{ matrix.name }}.json" 2>&1 | tee "$RUNNER_TEMP/xplat.log"
+      - name: Cross-platform check failure details as annotations
+        if: failure()
+        shell: bash
+        run: python .github/scripts/annotate_log_tail.py "xplat ${{ matrix.name }}" "$RUNNER_TEMP/xplat.log" 20 || true
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with: {name: "xplat-${{ matrix.name }}", path: "xplat-${{ matrix.name }}.json", if-no-files-found: warn}
+
   # EXPERIMENTAL, UNTESTED. Written from reading the 3D-ICE makefiles and from cross-compiling 37 of its sources with
   # x86_64-w64-mingw32-gcc (the remaining ones need the MSYS2 packages dlfcn and openblas: heat_sink.c includes dlfcn.h,
   # thermal_data.c cblas.h). Only 3D-ICE-Emulator is built. sources/network_socket.c (POSIX sockets, used only by the
@@ -195,5 +216,20 @@ jobs:
         if: failure() && steps.smoke.outcome == 'failure'
         shell: pwsh
         run: python .github/scripts/annotate_log_tail.py "windows smoke test" windows-test.log 40
+      - name: Cross-platform numerical agreement (experimental)
+        id: xplat
+        shell: bash
+        env: {XPLAT_LABEL: windows-x86_64}
+        run: |
+          set -o pipefail
+          WS="$PWD"
+          cd "$RUNNER_TEMP" && python "$WS/tests/xplat_check.py" --check --tol-abs 1e-6 --summary "$WS/xplat-windows.json" 2>&1 | tee "$WS/windows-xplat.log"
+      - name: Cross-platform check failure details as annotations
+        if: failure() && steps.xplat.outcome == 'failure'
+        shell: pwsh
+        run: python .github/scripts/annotate_log_tail.py "windows xplat" windows-xplat.log 20
+      - uses: actions/upload-artifact@v6
+        if: always() && steps.xplat.outcome != 'skipped'
+        with: {name: xplat-windows-EXPERIMENTAL, path: xplat-windows.json, if-no-files-found: warn}
       - uses: actions/upload-artifact@v6
         with: {name: wheels-windows-EXPERIMENTAL, path: "wheelhouse/*.whl", if-no-files-found: error}

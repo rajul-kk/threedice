@@ -1,0 +1,94 @@
+{
+ "cases": {
+  "example_steady": {
+   "inputs_sha256": {
+    "core.flp": "12942d36b0303063d5fdcda9ebf3455c87746de9c2c259e71c2c30320b0e2d34",
+    "example_steady.stk": "938c71b416a49493d9268ce64d2b5aabcdaae137b8f3e2077cb5a54d4f855707",
+    "mem.flp": "c66662fd6b88ecae0ea21d99b7dd0bd0a73899751645a6df40adaee851d4e099"
+   },
+   "outputs_sha256": {
+    "output1.txt": "254ee31536bf1bc5ed1dc578391319043aac555279956eb5ea4f8dbfce8044e1",
+    "output2.txt": "66448ea076686bf5b4cd70705c7721709bf6a97bc7da6c838e3736a43fdd07e6",
+    "output3.txt": "30413d46bce78b871b48a9c71922508a45dd091f6246c937ff132bf5586892f1",
+    "output4.txt": "fc6c7e2a8b8ed41fc70a9371f0baf1a74263388adae2bff2a469b1f18a6e3647",
+    "output5.txt": "637736b7150e38dbda12f4ef95a1b188b3b7b0aeea1b8395227e002bb59cc411",
+    "xaxis.txt": "6f38c061124113810034cb75dc82ab057d76507eadd6905c9599f6c11da4f87c",
+    "yaxis.txt": "039a33671bc5d4334b6f9d5f10b035102c7ab23f59e9387224d25bdd3563c0ca"
+   }
+  },
+  "example_steady_material": {
+   "inputs_sha256": {
+    "example_steady_material.stk": "d3a6e1f7932b84f74a96fedeb67dc74e2c8708c147315b9a8172d32ddbabe784",
+    "mem_mat.flp": "38e2fd4b7cc5b3e8cfab5735470bed4ada7c8dbb731b1680a02cd073c0418490"
+   },
+   "outputs_sha256": {
+    "conductance_layer.txt": "501e0125041bc3b1dc8d08f303df37a4e9b8796decf9974735920340ae511b42",
+    "output1.txt": "d6119abb6574aea2447aea2df9afa9b09830c31699242861b35e82e2167dd34c",
+    "output2.txt": "ca175ca8750a33e640a888e01b4babe39910740a8f736f95d1557dc3832fc59f",
+    "output3.vtk": "5cea8253bf5967fc00ab80166241bd3f407c2e220142746427708b33bc9fd697",
+    "xyaxis_MEMORY_DIE.txt": "ff7c753f1b2eb8042081ed70c974fae2ec4365056d848f4e56bf149ae22b67f6"
+   }
+  },
+  "example_transient_nonuniform": {
+   "inputs_sha256": {
+    "example_transient_nonuniform.stk": "6741470c8fa4726ac30a9bbaeaaf0112e49f93feebedd379bf96509e748a3dc4",
+    "mem.flp": "c66662fd6b88ecae0ea21d99b7dd0bd0a73899751645a6df40adaee851d4e099",
+    "nonuniform.flp": "fef12823b68685cc46c316775698df811a53c65fbb57b7f5f1a596f9818b5b87"
+   },
+   "outputs_sha256": {
+    "conductance_layer.txt": "205682cc8b3a3b35c2ddb9deeb4c515cc937c6689b27ac3bc97145e6763d4252",
+    "output_hotspot1.txt": "a1b33341b59de2f1cad824e196bf41f64568fd6ef1e320f0e756f4a1d1d0322a"
+   }
+  },
+  "mini_steady_2die": {
+   "inputs_sha256": {
+    "lower.flp": "b2a8e409ba15e49b58c95903be340ebc0fc6e888a72ee0de04b515b9a3b54384",
+    "two_die.stk": "7c31aa8ef2d803685f41d4da14196172d38dc9ca7bea02ad265f7c44c00312e8",
+    "upper.flp": "c6f003873c9e617f31b8d003aff601ad709ac7d911f5ae4e51cc49124eb818f2"
+   },
+   "outputs_sha256": {
+    "lower_flp.txt": "fe5907c0e441d3913b5c6712202b1991cd572006385c49546787fe83d9c729f7",
+    "lower_map.txt": "557ae2d68599f872e09898f481200962ce6dc8424a4926452116574d2413b54d",
+    "upper_map.txt": "5567b86bf09919a4f1b7db8e09b831a051749e2afab782042ce506832ddd0910",
+    "xaxis.txt": "5e527a6ad8d2a9bb2d2937e9740588f2a06ed198587766520c87d46abf46e403",
+    "yaxis.txt": "1d8792dc1801e18d55b582b7fa6071ac78f7acbba7073ffefb8e12d5f9901909"
+   }
+  },
+  "mini_transient_2die": {
+   "inputs_sha256": {
+    "lower.flp": "b2a8e409ba15e49b58c95903be340ebc0fc6e888a72ee0de04b515b9a3b54384",
+    "two_die_tr.stk": "edf1c50e522d06c043552fc628cb491aabfd3d6dc11f95c0835cab36a33abb9b",
+    "upper.flp": "c6f003873c9e617f31b8d003aff601ad709ac7d911f5ae4e51cc49124eb818f2"
+   },
+   "outputs_sha256": {
+    "lower_flp.txt": "408b73c4866ac25be7726229969ed9f1d5da3afa4e32575de5731a27100c045d",
+    "lower_map.txt": "a0f37af8135b4df3b592fcd5029d80402750d2d2a4e642f083a29cc8d10e235d",
+    "upper_map.txt": "5dfb9d199dc22e97bed974aaf1033841fadff6fdfadee25807dd03150288a4e9",
+    "xaxis.txt": "5e527a6ad8d2a9bb2d2937e9740588f2a06ed198587766520c87d46abf46e403",
+    "yaxis.txt": "1d8792dc1801e18d55b582b7fa6071ac78f7acbba7073ffefb8e12d5f9901909"
+   }
+  }
+ },
+ "provenance": {
+  "binary_sha256": "541107b7291dafa4319735db2b94c470b927b7c09d58639c87a5c9fa5147132b",
+  "build_date": null,
+  "how_generated": "python tests/xplat_check.py --generate, run in a python:3.11-slim container (Docker on Windows 11) with the Linux x86_64 wheel built locally by cibuildwheel 2.23.3 in a quay.io/pypa/manylinux_2_28_x86_64 image (local scratch build D:/Work/cibw_scratch, from the sdist, 2026-10-12). Not a CI artifact.",
+  "ice_commit": "4953952a1ef6d38807ff307212a6f15e5b2ef935",
+  "machine": "x86_64",
+  "platform": "Linux-6.6.114.1-microsoft-standard-WSL2-x86_64-with-glibc2.41",
+  "python": "3.11.16",
+  "system": "Linux",
+  "threedice_version": "4.0.0.post1",
+  "toolchain": {
+   "bison": "bison (GNU Bison) 3.0.4",
+   "flex": "flex 2.6.1",
+   "gcc": "gcc (GCC) 14.2.1 20250110 (Red Hat 14.2.1-11)",
+   "machine": "x86_64",
+   "make": "GNU Make 4.2.1",
+   "openblas": "0.3.15",
+   "platform": "Linux-6.6.114.1-microsoft-standard-WSL2-x86_64-with-glibc2.28"
+  },
+  "wheel_file": "threedice-4.0.0.post1-py3-none-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+  "wheel_sha256": "88e0ea49e4197e6a670063684d96c6a76d2839037d8d0bebf7c612074e8f990a"
+ }
+}
