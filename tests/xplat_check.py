@@ -3,8 +3,17 @@
 Runs the cases in tests/reference/cases/ with the installed binary and compares every output file with the files that the
 Linux x86_64 wheel produced (tests/reference/expected/, recorded in tests/reference/reference.json).
 
-    python xplat_check.py --check    [--summary out.json] [--tol-abs 1e-6]   exit 1 above the tolerance
-    python xplat_check.py --generate                                         (re)write the reference from THIS install
+    python xplat_check.py --check    [--threads 1,2,4] [--heavy] [--summary out.json] [--tol-abs 1e-6]
+                                                                             exit 1 above the tolerance
+    python xplat_check.py --generate [--heavy]                               (re)write the reference from THIS install
+                                                                             (single thread; --heavy: only the heavy cases)
+
+Threads. 3D-ICE 4953952 takes the thread count from the `numofcores N ;` line of the stack's solver section
+(bison/stack_description_parser.y optional_numofcores, default 1; sources/thermal_data.c set_parallel_cores() calls
+omp_set_num_threads(N), refused above omp_get_max_threads(); N is also the SuperLU_MT nprocs in system_matrix_build). For
+--threads N>1 the stack is rewritten with `numofcores N ;` and OMP_NUM_THREADS=N is set so that N is honoured even on
+runners with fewer cores. Every thread count is compared with the SINGLE-thread reference. Bit-identity across thread counts
+is expected but is not a pass condition; only the tolerance is. --heavy adds tests/reference/heavy/* (larger, ~40 s).
 
 Method. Outputs are text printed with limited digits, so differences are measured on the PARSED numbers: every
 whitespace/comma separated token that parses as a float is compared (abs diff, rel diff = abs diff / |reference|, 0/0 -> 0),
@@ -28,6 +37,7 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 REF = os.path.join(HERE, "reference")
 CASES = os.path.join(REF, "cases")
+HEAVY = os.path.join(REF, "heavy")
 EXPECTED = os.path.join(REF, "expected")
 MANIFEST = os.path.join(REF, "reference.json")
 PIN = "4953952a1ef6d38807ff307212a6f15e5b2ef935"
@@ -43,23 +53,48 @@ def read_norm(path):
         return f.read().replace(b"\r\n", b"\n")
 
 
-def case_names():
-    return sorted(d for d in os.listdir(CASES) if os.path.isdir(os.path.join(CASES, d)))
+def case_dirs(heavy_too=False, heavy_only=False):
+    """{name: directory} of the light cases and/or the heavy ones."""
+    out = {}
+    for base, use in ((CASES, not heavy_only), (HEAVY, heavy_too or heavy_only)):
+        if use and os.path.isdir(base):
+            out.update({d: os.path.join(base, d) for d in sorted(os.listdir(base)) if os.path.isdir(os.path.join(base, d))})
+    return out
 
 
-def run_case(exe, name, work):
-    """Copy the case to a fresh directory, run the emulator, return (rc, seconds, {output file: bytes}, log tail)."""
-    src = os.path.join(CASES, name)
-    dst = os.path.join(work, name)
+NUMOFCORES = re.compile(r"^[ \t]*numofcores[^;]*;[ \t]*\n", re.M | re.I)
+INITIAL_T = re.compile(r"^([ \t]*initial temperature[^;]*;[ \t]*\n)", re.M | re.I)
+
+
+def with_threads(text, n):
+    """The stack text with `numofcores n ;` (an existing numofcores line is removed first)."""
+    text = NUMOFCORES.sub("", text)
+    new, k = INITIAL_T.subn(lambda m: m.group(1) + f" numofcores {n} ;\n", text, count=1)
+    assert k == 1, "no 'initial temperature' line to attach numofcores to"
+    return new
+
+
+def run_case(exe, name, src, work, threads=1):
+    """Copy the case to a fresh directory, run the emulator with `threads` threads.
+    Returns (rc, seconds, {output file: bytes}, log tail, threads the emulator reports using)."""
+    dst = os.path.join(work, f"{name}_t{threads}")
     shutil.copytree(src, dst)
     stk = [f for f in os.listdir(dst) if f.endswith(".stk")]
     assert len(stk) == 1, (name, stk)
+    if threads != 1:
+        path = os.path.join(dst, stk[0])
+        with open(path, "rb") as fh:
+            text = fh.read().decode("latin-1").replace("\r\n", "\n")
+        with open(path, "wb") as fh:
+            fh.write(with_threads(text, threads).encode("latin-1"))
     before = set(os.listdir(dst))
+    env = dict(os.environ, OMP_NUM_THREADS=str(threads))
     t = time.time()
-    r = subprocess.run([exe, stk[0]], cwd=dst, capture_output=True, text=True, timeout=900)
+    r = subprocess.run([exe, stk[0]], cwd=dst, capture_output=True, text=True, timeout=1800, env=env)
     dt = time.time() - t
     outs = {f: read_norm(os.path.join(dst, f)) for f in sorted(set(os.listdir(dst)) - before)}
-    return r.returncode, dt, outs, (r.stdout + r.stderr)[-500:]
+    m = re.search(r"Used threads \((\d+)\)", r.stdout)
+    return r.returncode, dt, outs, (r.stdout + r.stderr)[-500:], int(m.group(1)) if m else None
 
 
 def _isnum(t):
@@ -95,8 +130,7 @@ def compare_bytes(ref, got):
     return res
 
 
-def input_hashes(name):
-    d = os.path.join(CASES, name)
+def input_hashes(d):
     return {f: sha(read_norm(os.path.join(d, f))) for f in sorted(os.listdir(d))}
 
 
@@ -111,18 +145,23 @@ def provenance(exe):
             "build_date": info.get("build_date"), "toolchain": info.get("toolchain")}
 
 
-def generate(exe, prov, work):
-    shutil.rmtree(EXPECTED, ignore_errors=True)
-    manifest = {"provenance": prov, "cases": {}}
-    for name in case_names():
-        rc, dt, outs, tail = run_case(exe, name, work)
+def generate(exe, prov, work, heavy):
+    if heavy and os.path.isfile(MANIFEST):          # add the heavy cases to the existing reference
+        with open(MANIFEST) as f:
+            manifest = json.load(f)
+    else:
+        shutil.rmtree(EXPECTED, ignore_errors=True)
+        manifest = {"provenance": prov, "cases": {}}
+    for name, src in case_dirs(heavy_only=heavy).items():
+        rc, dt, outs, tail, _ = run_case(exe, name, src, work)
         if rc != 0:
             sys.exit(f"{name}: emulator exit {rc}\n{tail}")
+        shutil.rmtree(os.path.join(EXPECTED, name), ignore_errors=True)
         os.makedirs(os.path.join(EXPECTED, name))
         for f, data in outs.items():
             with open(os.path.join(EXPECTED, name, f), "wb") as fh:
                 fh.write(data)
-        manifest["cases"][name] = {"inputs_sha256": input_hashes(name),
+        manifest["cases"][name] = {"inputs_sha256": input_hashes(src),
                                    "outputs_sha256": {f: sha(d) for f, d in outs.items()}}
         print(f"{name}: {len(outs)} files, {dt:.2f} s")
     with open(MANIFEST, "w") as f:
@@ -130,14 +169,18 @@ def generate(exe, prov, work):
         f.write("\n")
 
 
-def check_case(exe, name, manifest, work, tol):
-    entry = {"files": {}, "ok": True}
-    if input_hashes(name) != manifest["cases"][name]["inputs_sha256"]:
+def check_case(exe, name, src, manifest, work, tol, threads):
+    entry = {"files": {}, "ok": True, "threads": threads}
+    if input_hashes(src) != manifest["cases"][name]["inputs_sha256"]:
         entry.update(ok=False, error="input files differ from the recorded sha256")
         return entry
-    rc, dt, outs, tail = run_case(exe, name, work)
+    rc, dt, outs, tail, used = run_case(exe, name, src, work, threads)
     entry["seconds"] = round(dt, 3)
     entry["returncode"] = rc
+    entry["used_threads"] = used
+    if rc == 0 and used != threads:
+        entry.update(ok=False, error=f"emulator reports {used} threads, requested {threads}")
+        return entry
     if rc != 0:
         entry.update(ok=False, error=f"emulator exit {rc}: {tail}")
         return entry
@@ -164,6 +207,8 @@ def main():
     g = ap.add_mutually_exclusive_group(required=True)
     g.add_argument("--generate", action="store_true")
     g.add_argument("--check", action="store_true")
+    ap.add_argument("--threads", default="1", help="comma separated thread counts to run (default 1)")
+    ap.add_argument("--heavy", action="store_true", help="include tests/reference/heavy/* (with --generate: only those)")
     ap.add_argument("--summary", help="write the per-case/per-file results as JSON here")
     ap.add_argument("--tol-abs", type=float, default=1e-6)
     ap.add_argument("--label", default=os.environ.get("XPLAT_LABEL", platform.system() + "-" + platform.machine()))
@@ -175,17 +220,21 @@ def main():
     prov = provenance(exe)
     work = tempfile.mkdtemp(prefix="xplat_")
     if args.generate:
-        generate(exe, prov, work)
+        generate(exe, prov, work, args.heavy)
         return 0
 
     with open(MANIFEST) as f:
         manifest = json.load(f)
-    results = {name: check_case(exe, name, manifest, work, args.tol_abs) for name in case_names()}
+    threads_list = [int(x) for x in args.threads.split(",")]
+    results = {}                                        # "<case>@t<threads>" -> entry
+    for name, src in case_dirs(heavy_too=args.heavy).items():
+        for n in threads_list:
+            results[f"{name}@t{n}"] = check_case(exe, name, src, manifest, work, args.tol_abs, n)
     shutil.rmtree(work, ignore_errors=True)
     failed = [n for n, e in results.items() if not e["ok"]]
     done = [e for e in results.values() if "max_abs" in e]
-    summary = {"label": args.label, "tolerance_abs": args.tol_abs, "provenance": prov,
-               "reference_provenance": manifest["provenance"],
+    summary = {"label": args.label, "tolerance_abs": args.tol_abs, "threads": threads_list, "cpu_count": os.cpu_count(),
+               "provenance": prov, "reference_provenance": manifest["provenance"],
                "all_bit_identical": len(done) == len(results) and all(e["bit_identical"] for e in done),
                "max_abs": max((e["max_abs"] for e in done), default=None),
                "max_rel": max((e["max_rel"] for e in done), default=None),
@@ -195,13 +244,13 @@ def main():
             json.dump(summary, f, indent=1, sort_keys=True)
             f.write("\n")
     for name, e in results.items():
-        print(f"{args.label:16s} {name:30s} bit_identical={e.get('bit_identical')} max_abs={e.get('max_abs')} "
+        print(f"{args.label:16s} {name:34s} bit_identical={e.get('bit_identical')} max_abs={e.get('max_abs')} "
               f"max_rel={e.get('max_rel')} {e.get('error', '')}")
-        print(f"::notice title=xplat {args.label} {name}::bit_identical={e.get('bit_identical')} max_abs={e.get('max_abs')} "
+        print(f"::notice title=xplat {args.label} {name}::cpus={os.cpu_count()} bit_identical={e.get('bit_identical')} max_abs={e.get('max_abs')} "
               f"max_rel={e.get('max_rel')} ok={e['ok']} {e.get('error', '')}")
     print(f"::notice title=xplat {args.label}::max abs diff vs Linux x86_64 reference = {summary['max_abs']} K, "
           f"max rel = {summary['max_rel']}, bit-identical on all files = {summary['all_bit_identical']}, "
-          f"tolerance {args.tol_abs} K, passed = {summary['passed']}")
+          f"threads {threads_list}, cpus {os.cpu_count()}, tolerance {args.tol_abs} K, passed = {summary['passed']}")
     return 0 if not failed else 1
 
 

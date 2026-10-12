@@ -142,7 +142,7 @@ jobs:
           python -m venv "$RUNNER_TEMP/xv"
           PY="$RUNNER_TEMP/xv/bin/python"
           "$PY" -m pip install --no-index --find-links "$WS/wheelhouse" threedice 2>&1 | tail -n 2
-          cd "$RUNNER_TEMP" && "$PY" "$WS/tests/xplat_check.py" --check --tol-abs 1e-6 --summary "$WS/xplat-${{ matrix.name }}.json" 2>&1 | tee "$RUNNER_TEMP/xplat.log"
+          cd "$RUNNER_TEMP" && "$PY" "$WS/tests/xplat_check.py" --check --threads 1,2,4 --heavy --tol-abs 1e-6 --summary "$WS/xplat-${{ matrix.name }}.json" 2>&1 | tee "$RUNNER_TEMP/xplat.log"
       - name: Cross-platform check failure details as annotations
         if: failure()
         shell: bash
@@ -223,7 +223,7 @@ jobs:
         run: |
           set -o pipefail
           WS="$PWD"
-          cd "$RUNNER_TEMP" && python "$WS/tests/xplat_check.py" --check --tol-abs 1e-6 --summary "$WS/xplat-windows.json" 2>&1 | tee "$WS/windows-xplat.log"
+          cd "$RUNNER_TEMP" && python "$WS/tests/xplat_check.py" --check --threads 1,2,4 --heavy --tol-abs 1e-6 --summary "$WS/xplat-windows.json" 2>&1 | tee "$WS/windows-xplat.log"
       - name: Cross-platform check failure details as annotations
         if: failure() && steps.xplat.outcome == 'failure'
         shell: pwsh

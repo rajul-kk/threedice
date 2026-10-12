@@ -1,5 +1,19 @@
 {
  "cases": {
+  "big_steady_4die": {
+   "inputs_sha256": {
+    "four_die.stk": "a275cf41edecd77c63887d7ec5f6c10f4852897cebc1ee2b7fa6dce3a106472a",
+    "lower.flp": "b2a8e409ba15e49b58c95903be340ebc0fc6e888a72ee0de04b515b9a3b54384",
+    "upper.flp": "c6f003873c9e617f31b8d003aff601ad709ac7d911f5ae4e51cc49124eb818f2"
+   },
+   "outputs_sha256": {
+    "d1_map.txt": "2f61e5876435140af50d8e9ba7ce89c47659ae4d97771124f57cbe6e58ff9fe1",
+    "d2_flp.txt": "d20812494127d6df291d6da7b86373761593738c873971de1093672826220c46",
+    "d4_map.txt": "0af629386db6b284a5ed390fa9b4cdc3794c838dc1d246e77ce6976b18940a73",
+    "xaxis.txt": "439c2cffd6db5b3439c39d664727e7fc1a7608bf00e9f8c80435a0a57eb546ca",
+    "yaxis.txt": "3ad34790be034570d333793e5ea7d189676f107fc4605a8da99ef79bedea49d5"
+   }
+  },
   "example_steady": {
    "inputs_sha256": {
     "core.flp": "12942d36b0303063d5fdcda9ebf3455c87746de9c2c259e71c2c30320b0e2d34",
