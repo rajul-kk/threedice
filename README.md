@@ -92,6 +92,37 @@ Verification record (commands, numbers, environment): `VERIFICATION.md`.
   (`wsl -e ~/ice-venv/bin/python -c "import threedice; print(threedice.executable())"` prints the exact path.) The pin
   check reads the commit from the package's `_build_info.json` for such paths.
 
+## Cross-platform agreement
+
+Do all wheels give the same temperatures as the Linux x86_64 wheel? `tests/xplat_check.py` (run by every wheel job of
+`build.yml` after the build, from a fresh install of the built wheel) solves five small cases and compares every output file
+with `tests/reference/expected/`, the files written by the Linux x86_64 wheel (`tests/reference/reference.json`: wheel sha256,
+binary sha256, platform; the reference was produced locally in Docker from the cibuildwheel-built wheel, not by CI). Cases:
+3D-ICE's own `bin/example_steady.stk` (microchannels, 5 outputs), `example_steady_material.stk` (incl. a 3-D VTK map),
+`example_transient_nonuniform.stk`, plus two hand-written two-die stacks, one steady and one transient (100 um cells; Tmap and
+Tflp outputs). The 3D-ICE example inputs are copies of GPL-3.0-or-later upstream files (line endings normalised to LF).
+
+Method: outputs are text printed with limited digits, so the comparison is on the **parsed numbers** (every numeric token of
+every file: abs diff, rel diff = abs diff / |reference|); "bit-identical" means the file bytes are equal (after CRLF -> LF).
+**Tolerance, fixed before the first run: a job fails if any number differs by more than 1e-6 K absolute.** It has not been
+changed. A difference smaller than the printed precision would not be seen. Each job writes `xplat-<platform>.json` (artifact)
+and `::notice::` annotations.
+
+Measured in run [38267450759](https://github.com/rajul-kk/threedice/actions/runs/38267450759) (commit 5cfca52, all jobs green):
+
+| platform | example_steady | example_steady_material | example_transient_nonuniform | mini_steady_2die | mini_transient_2die |
+|---|---|---|---|---|---|
+| linux x86_64 (CI build) | identical, 0 / 0 | identical, 0 / 0 | identical, 0 / 0 | identical, 0 / 0 | identical, 0 / 0 |
+| linux aarch64 | identical, 0 / 0 | identical, 0 / 0 | identical, 0 / 0 | identical, 0 / 0 | identical, 0 / 0 |
+| macOS arm64 | identical, 0 / 0 | identical, 0 / 0 | identical, 0 / 0 | identical, 0 / 0 | identical, 0 / 0 |
+| macOS x86_64 | identical, 0 / 0 | identical, 0 / 0 | identical, 0 / 0 | identical, 0 / 0 | identical, 0 / 0 |
+| Windows x86_64 (experimental, MSYS2 UCRT64) | identical, 0 / 0 | identical, 0 / 0 | identical, 0 / 0 | identical, 0 / 0 | identical, 0 / 0 |
+
+(each cell: bit-identical on all files of the case, max abs diff in K / max rel diff.) Limits: five cases, one OpenMP thread
+(`numofcores 1` or the default), steady and single-slot transient solves; the wheels use different compilers and BLAS
+libraries (gcc 14 + OpenBLAS on Linux, Homebrew gcc + OpenBLAS on macOS, MSYS2 gcc + OpenBLAS on Windows), so agreement
+here does not prove agreement for larger systems, other thread counts or other stacks.
+
 ## iceforge
 
 `iceforge` has a `pip` backend: if `import threedice` works in the Python that runs iceforge, `--backend pip` (and
