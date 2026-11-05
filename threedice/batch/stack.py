@@ -14,6 +14,7 @@ _STACK_SEC = re.compile(r"\bstack\s*:(.*?)(?=\bsolver\s*:|\Z)", re.S)
 _OUTPUT_SEC = re.compile(r"\boutput\s*:")
 _NUMOFCORES = re.compile(r"\bnumofcores\s+\d+\s*;")
 _INITIAL_T = re.compile(r"(\binitial\s+temperature\s+[^;]*;)")
+_OUTPUT_MARK = "\n\noutput :\n"
 _QUOTED = re.compile(r"\"([^\"]+)\"")
 _UNSUPPORTED = {
     r"\bchannel\b": "microchannel/channel cavities (non-uniform wall cells)",
@@ -97,6 +98,10 @@ class Stack:
             h.update(k.encode("utf-8") + b"\0" + sha256(self.files[k]).encode())
         return h.hexdigest()
 
+    def render_body(self, floorplans):
+        """The rendered stack without its output section: what determines the solution (used for the cache key)."""
+        return self.render(floorplans, [])[0].split(_OUTPUT_MARK)[0]
+
     def render(self, floorplans, outputs):
         """Stack text for one case. `floorplans`: {die instance: floorplan file name}; `outputs`: element names.
         Returns (text, {element: Tmap file name})."""
@@ -121,5 +126,5 @@ class Stack:
         if n != 1:
             raise StackError("no 'initial temperature' line in the solver section")
         tmaps = {e: f"tmap_{e}.txt" for e in outputs}
-        text = text.rstrip() + "\n\noutput :\n" + "".join(f"  Tmap ( {e}, \"{f}\", final ) ;\n" for e, f in tmaps.items())
+        text = text.rstrip() + _OUTPUT_MARK + "".join(f"  Tmap ( {e}, \"{f}\", final ) ;\n" for e, f in tmaps.items())
         return text, tmaps

@@ -188,9 +188,13 @@ Precision limit: everything is limited to the 0.001 K printed by 3D-ICE's Tmap.
 
 ## 6. Caching
 
-Key = SHA-256 of a canonical JSON of: cache format version; solver id; the rendered stack text; the name and SHA-256 of
-every file written to the case directory; the list of output elements. The probe set and the interpolation mode are
-*not* in the key: probes are recomputed from cached fields, so new probes never trigger new solves.
+Key = SHA-256 of a canonical JSON of: cache format version; solver id; the rendered stack text *without* its output
+section; the name and SHA-256 of every file written to the case directory. The probe set, the interpolation mode and
+the output elements are *not* in the key: probes are recomputed from cached fields, so new probes never trigger new
+solves; an entry stores the fields of every element solved so far, and a request for an element it lacks re-solves
+the case once for the union of old and new elements and replaces the entry (entries only grow). (First draft had the
+output list in the key; changed while writing the tests, because asking for one more element then re-solved every case
+and kept two entries for the same physics.)
 
 Solver id: SHA-256 of the executable file when it is a local file; for a `wsl <path>` command, the SHA-256 computed by
 `sha256sum` inside WSL; otherwise the command string (with a warning that a rebuilt binary at the same path would not
