@@ -117,7 +117,8 @@ jobs:
           CIBW_ENVIRONMENT_LINUX: CPATH=/usr/include/openblas
           # Smoke test of every wheel, run in a clean environment away from the source tree: import, check the
           # pinned upstream commit, then solve a small stack with the installed binary (tests/ is inside the sdist).
-          CIBW_TEST_REQUIRES: pytest
+          # numpy: the threedice.batch tests (they skip without it) also run against every built wheel
+          CIBW_TEST_REQUIRES: pytest numpy
           CIBW_TEST_COMMAND: >
             python -c "import threedice; c = threedice.ice_commit(); print(threedice.executable(), c); assert c == '${{ env.PIN }}'"
             && python -m pytest {project}/tests -q
@@ -204,7 +205,7 @@ jobs:
           set -o pipefail
           {
             set -x
-            python -m pip install pytest
+            python -m pip install pytest numpy
             python -m pip install --no-index --find-links wheelhouse threedice
             # not from the workspace root: its threedice/ source directory (no binary) would shadow the installed wheel
             (cd "$RUNNER_TEMP" && python -c "import threedice; c = threedice.ice_commit(); print(threedice.executable(), c); assert c == '${{ env.PIN }}'")

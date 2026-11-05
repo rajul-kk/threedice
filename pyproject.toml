@@ -21,6 +21,10 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Physics",
 ]
 
+[project.optional-dependencies]
+# threedice.batch (batch solves with probe export); `import threedice` itself needs nothing
+batch = ["numpy>=1.20"]
+
 [project.urls]
 Source = "https://github.com/rajul-kk/threedice"
 Issues = "https://github.com/rajul-kk/threedice/issues"
@@ -30,7 +34,7 @@ Upstream = "https://github.com/esl-epfl/3d-ice"
 3d-ice-emulator = "threedice._cli:main"
 
 [tool.setuptools]
-packages = ["threedice"]
+packages = ["threedice", "threedice.batch"]
 include-package-data = false
 
 [tool.pytest.ini_options]
