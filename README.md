@@ -31,6 +31,25 @@ API: `threedice.executable()` (path of the bundled binary), `threedice.ice_commi
 `threedice.build_info()` (contents of `threedice/_build_info.json`: upstream and SuperLU_MT commits, build date,
 toolchain, applied patches with sha256), `3d-ice-emulator` (console script, execs the binary).
 
+### Batch solves with probe export (`threedice.batch`, needs `pip install threedice[batch]`)
+
+Runs many solves (placements x power maps) and returns the temperature at probe points given in micrometres plus the
+full field of chosen stack elements, saved as one `.npz`; solves are cached on disk by a hash of their inputs and run in
+parallel as single-threaded solver processes. Design, file format and limits: `docs/batch_api_design.md`.
+
+```python
+from threedice.batch import Stack, Block, Floorplan, Probes, cases_product, run_batch
+stack = Stack.from_file("pkg.stk")                      # uniform grid, no channels
+cases = cases_product(stack, placements={"a": {"TOP": (0, 0)}, "b": {"TOP": (500, 200)}},
+                      power_maps={"m0": {"TOP": Floorplan([Block("core", 0, 0, 400, 300, 3.0)])}})
+res = run_batch(stack, cases, Probes("TOP", [150, 900], [150, 700]), out="batch.npz", cache_dir=".cache", workers=4)
+res.probe_T            # (n_cases, n_probes) K;   res.field("TOP") -> (n_cases, ny, nx)
+```
+
+Floorplan blocks whose edges fall mid-cell are refused by default (`edge_policy="snap"` or `"allow"` to change that),
+because of the die-edge partial-cell artefact; every solve runs with `numofcores 1` (see "Threads" below). The solver is
+`$THREEDICE_EXECUTABLE` when set (e.g. `wsl /home/<you>/.../3D-ICE-Emulator` on Windows), else the bundled binary.
+
 Not included: the SystemC wrapper, `3D-ICE-Server`/`3D-ICE-Client`, the Python heat-sink plugin.
 
 ## What is built, and from what
