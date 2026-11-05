@@ -98,7 +98,7 @@ and is not needed: placements and power maps live in floorplans and layouts, whi
 
 A `Case` is a name, `floorplans: {instance: Floorplan}` and `files: {name: text|bytes}` (extra or overriding input
 files, e.g. a placement's `.lyt`). The batch is a list of cases; nothing forces a product structure.
-`cases_product(placements, power_maps)` builds the common product: a placement is `{instance: (dx_um, dy_um)}`, a
+`cases_product(stack, placements, power_maps)` builds the common product: a placement is `{instance: (dx_um, dy_um)}`, a
 power map is `{instance: Floorplan or 2-D array of watts per cell}` in the die's own coordinates; the product shifts
 every block by the placement offset. Case names are `"<placement>__<power map>"`.
 
@@ -256,3 +256,14 @@ current Windows directory and all paths in the rendered stack are relative to th
 4. Parsing `.lyt` files to run the same edge check on layouts.
 5. Non-uniform grids: 3D-ICE 4.0 prints a list of cells for them; supporting it means a different probe mapping
    (point-in-rectangle search).
+
+## 11. Verification (2026-11-05, this machine)
+
+* Pure-Python and stand-in-solver tests (`tests/test_batch_mapping.py`, `test_batch_floorplan.py`,
+  `test_batch_runner.py`; the stand-in is `tests/_fake_3dice.py`): grid, cell/bilinear mapping, edge policy and
+  edge-cell flags, stack rendering, cache hits / misses / growth / corrupt entries, failure collection.
+* Real binary (`tests/test_batch_solver.py`): the wheel's 3D-ICE-Emulator (pinned 4953952) in WSL, run both natively in
+  WSL (`THREEDICE_EXECUTABLE=/home/.../3D-ICE-Emulator`) and from Windows through `wsl <path>`. Checks: the batch path
+  reproduces the recorded single-thread reference Tmaps of `mini_steady_2die` exactly; probe values equal the field
+  cells; the hotspot lands under the placed block (orientation); probe temperature rises superpose within 2e-3 K.
+* Not run here: macOS / aarch64 / native Windows wheels (CI will run the same tests, now with NumPy installed).
