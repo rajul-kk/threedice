@@ -9,6 +9,11 @@
 Design, formats and limits: docs/batch_api_design.md. This module only runs the solver binary as a separate process;
 it does not change the build or the upstream patches.
 """
+try:
+    import numpy  # noqa: F401
+except ImportError as e:  # the base package has no dependencies; batch is an extra
+    raise ImportError("threedice.batch needs NumPy: pip install 'threedice[batch]'") from e
+
 from .cache import Cache, case_key
 from .floorplan import Block, Floorplan, FloorplanError
 from .grid import Grid, GridError
