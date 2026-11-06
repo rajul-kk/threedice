@@ -267,3 +267,11 @@ current Windows directory and all paths in the rendered stack are relative to th
   reproduces the recorded single-thread reference Tmaps of `mini_steady_2die` exactly; probe values equal the field
   cells; the hotspot lands under the placed block (orientation); probe temperature rises superpose within 2e-3 K.
 * Not run here: macOS / aarch64 / native Windows wheels (CI will run the same tests, now with NumPy installed).
+
+### Review of the CI change before merge (2026-11-06)
+- `77dc941` adds `numpy` to the wheel tests (`CIBW_TEST_REQUIRES`, the Windows smoke test) and ships `threedice.batch`.
+  Every wheel target is CPython 3.11 on manylinux x86_64/aarch64, macOS arm64/x86_64 or Windows x86_64, all of which
+  have prebuilt NumPy wheels, so the test step cannot fall back to compiling NumPy. The workflow parses (3 jobs).
+- All four batch test files use `pytest.importorskip("numpy")`; the base package imports without NumPy
+  (`tests/test_batch_optional_numpy.py`). `import threedice.batch` without NumPy now names the `[batch]` extra.
+- Still unverified: the workflow itself on GitHub runners (needs a push) and the experimental MinGW Windows job.
