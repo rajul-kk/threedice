@@ -132,6 +132,20 @@ def _bundle_mingw_dlls(exe):
     print("bundled DLLs:", ", ".join(sorted(copied)), flush=True)
 
 
+def cxx_compiler(make_args):
+    """C++ compiler for 3D-ICE-Batch: $THREEDICE_CXX, else the C++ driver matching the CC= given to make (gcc-14 ->
+    g++-14, so macOS uses Homebrew gcc with -fopenmp rather than Apple clang), else $CXX, else g++."""
+    if os.environ.get("THREEDICE_CXX"):
+        return os.environ["THREEDICE_CXX"]
+    cc = next((a.split("=", 1)[1] for a in make_args if a.startswith("CC=")), "")
+    if cc:
+        head, base = os.path.split(cc)
+        for c, cpp in (("gcc", "g++"), ("clang", "clang++")):
+            if base.startswith(c):
+                return os.path.join(head, cpp + base[len(c):])
+    return os.environ.get("CXX", "g++")
+
+
 def build_native(build_lib):
     """Compile 3D-ICE-Emulator and put it, with licences and _build_info.json, into <build_lib>/threedice/."""
     if os.name != "posix" and not MINGW:
@@ -172,7 +186,7 @@ def build_native(build_lib):
     batch = None
     if not MINGW:                                               # 3D-ICE-Batch: same library and flags (native/ice_batch.cpp)
         batch = ice / "bin" / BATCH_EXE
-        cxx = os.environ.get("CXX", "g++")
+        cxx = cxx_compiler(extra)
         _run([cxx, "-std=c++17", "-O2", "-fopenmp", f"-I{ice / 'include'}", f"-I{slu / 'SRC'}",
               HERE / "native" / "ice_batch.cpp", ice / "lib" / "libthreed-ice-4.0.0.a",
               f"-L{slu / 'lib'}", "-lsuperlu_mt_OPENMP", *shlex.split(blas), "-lm", "-ldl", "-o", batch])
@@ -206,6 +220,6 @@ def build_native(build_lib):
             "toolchain": toolchain(), "patches": patches,
             "built_targets": [EXE] + ([BATCH_EXE] if batch is not None else []),
             "skipped": ["SystemC wrapper", "3D-ICE-Server", "3D-ICE-Client", "heatsink plugin"],
-            "make_args": extra, "blas_libs": blas}
+            "make_args": extra, "blas_libs": blas, "cxx": cxx_compiler(extra) if batch is not None else None}
     (pkg / "_build_info.json").write_text(json.dumps(info, indent=2) + "\n")
     print("built", pkg / "bin" / EXE, flush=True)

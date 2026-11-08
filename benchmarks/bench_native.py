@@ -49,6 +49,7 @@ def main():
     ap.add_argument("--placements", type=int, default=6)
     ap.add_argument("--maps", type=int, default=4)
     ap.add_argument("--workers", type=int, nargs="+", default=[1, 4])
+    ap.add_argument("--backends", nargs="+", default=["process", "native"], choices=["process", "native"])
     a = ap.parse_args()
     stack = Stack(STK.format(cell=a.grid), files={"upper.flp": BASE, "lower.flp": BASE})
     rng = np.random.default_rng(0)
@@ -63,7 +64,7 @@ def main():
         maps[f"m{j}"] = {"UPPER": Floorplan(blocks)}
     cases = cases_product(stack, placements, maps)
     rows, fields = [], {}
-    for backend in ("process", "native"):
+    for backend in a.backends:
         for w in a.workers:
             t = time.perf_counter()
             res = run_batch(stack, cases, outputs=["UPPER", "LOWER"], field_dtype="float64", workers=w, backend=backend)
@@ -75,6 +76,10 @@ def main():
                          "factor_s": max((s.get("factor_seconds", 0) for s in solves), default=0),
                          "median_solve_s": float(np.median([s["seconds"] for s in solves]))})
             print(f"{backend:<8} workers {w}: {dt:7.2f} s for {len(cases)} cases ({dt / len(cases):.3f} s/case)", flush=True)
+    if set(fields) != {"process", "native"}:
+        with open(a.out, "w") as f:
+            json.dump({"rows": rows, "machine": platform.machine(), "python": platform.python_version()}, f, indent=1)
+        return
     diff = float(np.max(np.abs(fields["native"] - fields["process"])))
     print(f"max |native - process| = {diff:.2e} K (process Tmaps are printed with 3 decimals)")
     for w in a.workers:
