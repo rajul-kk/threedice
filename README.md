@@ -50,6 +50,17 @@ Floorplan blocks whose edges fall mid-cell are refused by default (`edge_policy=
 because of the die-edge partial-cell artefact; every solve runs with `numofcores 1` (see "Threads" below). The solver is
 `$THREEDICE_EXECUTABLE` when set (e.g. `wsl /home/<you>/.../3D-ICE-Emulator` on Windows), else the bundled binary.
 
+**`backend="native"`** runs `3D-ICE-Batch` (`native/ice_batch.cpp`, built with the emulator from the same pinned 3D-ICE
+library; POSIX only) instead of one emulator process per case. For a steady-state stack on a uniform grid the
+conductance matrix does not depend on the floorplans, so it parses the stack and factorises the system once per worker,
+then for each case swaps the die floorplans in place and re-solves with that factorisation; temperatures come back in
+full double precision rather than as the 3-decimal Tmap text. Cases are grouped by everything except their floorplan
+files; native and process results never share cache entries. Binary: `$THREEDICE_BATCH_EXECUTABLE`, else the bundled
+`3D-ICE-Batch` (`threedice.batch_executable()`). On the 2-die reference case (30 x 40 cells) it factorises in 0.12 s
+and then solves each floorplan in about 1.5 ms, against about 0.2 s per case for the emulator, with every temperature
+within the emulator's 0.0005 K printing precision (`tests/test_batch_native.py`). `benchmarks/bench_native.py` times
+both backends on a larger placements x power maps batch; it has not been run to completion yet.
+
 Not included: the SystemC wrapper, `3D-ICE-Server`/`3D-ICE-Client`, the Python heat-sink plugin.
 
 ## What is built, and from what

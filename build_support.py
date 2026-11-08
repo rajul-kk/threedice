@@ -22,6 +22,7 @@ PATCH_DIRS = {"3d-ice": HERE / "patches", "superlu_mt": HERE / "patches" / "supe
 # Windows (EXPERIMENTAL, MSYS2 UCRT64/MinGW-w64): Python is the native Windows one, make/gcc/bison/flex come from MSYS2.
 MINGW = os.name == "nt" and os.environ.get("THREEDICE_MINGW") == "1"
 EXE = "3D-ICE-Emulator.exe" if MINGW else "3D-ICE-Emulator"
+BATCH_EXE = "3D-ICE-Batch"
 WINDOWS_PATCH_DIR = HERE / "patches" / "windows"        # emulator-only changes: no getrusage, no network_socket.c
 
 
@@ -168,11 +169,24 @@ def build_native(build_lib):
     exe = ice / "bin" / EXE
     if not exe.exists():
         raise RuntimeError(f"{EXE} was not built")
+    batch = None
+    if not MINGW:                                               # 3D-ICE-Batch: same library and flags (native/ice_batch.cpp)
+        batch = ice / "bin" / BATCH_EXE
+        cxx = os.environ.get("CXX", "g++")
+        _run([cxx, "-std=c++17", "-O2", "-fopenmp", f"-I{ice / 'include'}", f"-I{slu / 'SRC'}",
+              HERE / "native" / "ice_batch.cpp", ice / "lib" / "libthreed-ice-4.0.0.a",
+              f"-L{slu / 'lib'}", "-lsuperlu_mt_OPENMP", *shlex.split(blas), "-lm", "-ldl", "-o", batch])
+        if not batch.exists():
+            raise RuntimeError(f"{BATCH_EXE} was not built")
     pkg = Path(build_lib) / "threedice"
     (pkg / "bin").mkdir(parents=True, exist_ok=True)
     shutil.copy2(exe, pkg / "bin" / EXE)
+    if batch is not None:
+        shutil.copy2(batch, pkg / "bin" / BATCH_EXE)
     if shutil.which("strip"):
         subprocess.run(["strip", str(pkg / "bin" / EXE)], check=False)
+        if batch is not None:
+            subprocess.run(["strip", str(pkg / "bin" / BATCH_EXE)], check=False)
     if MINGW:
         _bundle_mingw_dlls(pkg / "bin" / EXE)
     (pkg / "licenses").mkdir(exist_ok=True)
@@ -190,7 +204,7 @@ def build_native(build_lib):
             "superlu_mt_commit": PINS["superlu_mt"]["commit"], "superlu_mt_repo": PINS["superlu_mt"]["url"],
             "build_date_utc": when.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "toolchain": toolchain(), "patches": patches,
-            "built_targets": [EXE],
+            "built_targets": [EXE] + ([BATCH_EXE] if batch is not None else []),
             "skipped": ["SystemC wrapper", "3D-ICE-Server", "3D-ICE-Client", "heatsink plugin"],
             "make_args": extra, "blas_libs": blas}
     (pkg / "_build_info.json").write_text(json.dumps(info, indent=2) + "\n")
