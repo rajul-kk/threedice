@@ -1,0 +1,25 @@
+process  workers 1:  302.86 s for 12 cases (25.238 s/case)
+process  workers 2:  203.02 s for 12 cases (16.919 s/case)
+/mnt/d/Work/threedice/threedice/batch/runner.py:103: UserWarning: cannot hash the solver binary of ['/tmp/3D-ICE-Batch']; the cache is keyed on the command string, so a rebuilt binary at the same path would not invalidate it (pass solver_id= to fix)
+  warnings.warn(f"cannot hash the solver binary of {cmd!r}; the cache is keyed on the command string, so a rebuilt "
+Traceback (most recent call last):
+  File "/mnt/d/Work/threedice/benchmarks/bench_native.py", line 90, in <module>
+    main()
+    ~~~~^^
+  File "/mnt/d/Work/threedice/benchmarks/bench_native.py", line 69, in main
+    res = run_batch(stack, cases, outputs=["UPPER", "LOWER"], field_dtype="float64", workers=w, backend=backend)
+  File "/mnt/d/Work/threedice/threedice/batch/runner.py", line 426, in run_batch
+    raise BatchError(failures)
+threedice.batch.runner.BatchError: 12 case(s) failed:
+  p0__m0: [Errno 2] No such file or directory: '/tmp/3D-ICE-Batch'
+  p0__m1: [Errno 2] No such file or directory: '/tmp/3D-ICE-Batch'
+  p0__m2: [Errno 2] No such file or directory: '/tmp/3D-ICE-Batch'
+  p1__m0: [Errno 2] No such file or directory: '/tmp/3D-ICE-Batch'
+  p1__m1: [Errno 2] No such file or directory: '/tmp/3D-ICE-Batch'
+  p1__m2: [Errno 2] No such file or directory: '/tmp/3D-ICE-Batch'
+  p2__m0: [Errno 2] No such file or directory: '/tmp/3D-ICE-Batch'
+  p2__m1: [Errno 2] No such file or directory: '/tmp/3D-ICE-Batch'
+  p2__m2: [Errno 2] No such file or directory: '/tmp/3D-ICE-Batch'
+  p3__m0: [Errno 2] No such file or directory: '/tmp/3D-ICE-Batch'
+  p3__m1: [Errno 2] No such file or directory: '/tmp/3D-ICE-Batch'
+  p3__m2: [Errno 2] No such file or directory: '/tmp/3D-ICE-Batch'

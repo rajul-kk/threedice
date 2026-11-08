@@ -6,6 +6,7 @@ import sys
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 EXE_NAME = "3D-ICE-Emulator.exe" if os.name == "nt" else "3D-ICE-Emulator"
+BATCH_EXE_NAME = "3D-ICE-Batch"   # threedice's own steady-state batch solver (native/ice_batch.cpp); POSIX builds only
 
 try:
     from importlib.metadata import version as _version
@@ -25,9 +26,8 @@ def ice_commit():
     return build_info()["ice_commit"]
 
 
-def executable():
-    """Absolute path of the bundled 3D-ICE-Emulator binary."""
-    p = os.path.join(_HERE, "bin", EXE_NAME)
+def _bundled(name):
+    p = os.path.join(_HERE, "bin", name)
     if not os.path.isfile(p):
         raise FileNotFoundError(f"{p} is missing: this build of threedice has no binary for {sys.platform}")
     if os.name == "posix" and not os.access(p, os.X_OK):
@@ -36,3 +36,13 @@ def executable():
         except OSError:
             pass
     return p
+
+
+def executable():
+    """Absolute path of the bundled 3D-ICE-Emulator binary."""
+    return _bundled(EXE_NAME)
+
+
+def batch_executable():
+    """Absolute path of the bundled 3D-ICE-Batch binary (factorise once, solve many floorplans; see threedice.batch)."""
+    return _bundled(BATCH_EXE_NAME)

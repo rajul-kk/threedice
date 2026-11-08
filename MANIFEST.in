@@ -1,4 +1,5 @@
 include README.md NOTICE COPYING upstream.json build_support.py VERIFICATION.md
 recursive-include patches *.patch
+recursive-include native *.cpp
 recursive-include tests *.py *.json *.stk *.flp *.txt *.vtk *.md
 include RELEASING.md
