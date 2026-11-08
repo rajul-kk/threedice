@@ -1,0 +1,32 @@
+{
+ "rows": [
+  {
+   "backend": "native",
+   "workers": 1,
+   "cases": 12,
+   "wall_s": 33.221379079972394,
+   "per_case_s": 2.768448256664366,
+   "grid": [
+    200,
+    200
+   ],
+   "factor_s": 30.926,
+   "median_solve_s": 0.136954
+  },
+  {
+   "backend": "native",
+   "workers": 2,
+   "cases": 12,
+   "wall_s": 34.698195625969674,
+   "per_case_s": 2.8915163021641397,
+   "grid": [
+    200,
+    200
+   ],
+   "factor_s": 33.553,
+   "median_solve_s": 0.13117299999999998
+  }
+ ],
+ "machine": "x86_64",
+ "python": "3.14.4"
+}

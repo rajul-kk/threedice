@@ -75,7 +75,7 @@ jobs:
           # Native arm64 runner (free for public repos). If it is unavailable, use ubuntu-latest plus
           # docker/setup-qemu-action (QEMU emulation works, but the SuperLU_MT + 3D-ICE build is then slow).
           - {name: linux-aarch64, os: ubuntu-24.04-arm, archs: aarch64, build: "cp311-manylinux*"}
-          - {name: macos-arm64,   os: macos-14,         archs: arm64,  build: "cp311-macosx*", deploy: "14.0"}
+          - {name: macos-arm64,   os: macos-15,         archs: arm64,  build: "cp311-macosx*", deploy: "15.0"}
           # macos-13 (the last Intel runner image) has been retired by GitHub; macos-15-intel is its successor.
           - {name: macos-x86_64,  os: macos-15-intel,   archs: x86_64, build: "cp311-macosx*", deploy: "15.0"}
     steps:
@@ -117,7 +117,8 @@ jobs:
           CIBW_ENVIRONMENT_LINUX: CPATH=/usr/include/openblas
           # Smoke test of every wheel, run in a clean environment away from the source tree: import, check the
           # pinned upstream commit, then solve a small stack with the installed binary (tests/ is inside the sdist).
-          CIBW_TEST_REQUIRES: pytest
+          # numpy: the threedice.batch tests (they skip without it) also run against every built wheel
+          CIBW_TEST_REQUIRES: pytest numpy
           CIBW_TEST_COMMAND: >
             python -c "import threedice; c = threedice.ice_commit(); print(threedice.executable(), c); assert c == '${{ env.PIN }}'"
             && python -m pytest {project}/tests -q
@@ -204,7 +205,7 @@ jobs:
           set -o pipefail
           {
             set -x
-            python -m pip install pytest
+            python -m pip install pytest numpy
             python -m pip install --no-index --find-links wheelhouse threedice
             # not from the workspace root: its threedice/ source directory (no binary) would shadow the installed wheel
             (cd "$RUNNER_TEMP" && python -c "import threedice; c = threedice.ice_commit(); print(threedice.executable(), c); assert c == '${{ env.PIN }}'")
